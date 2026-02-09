@@ -1,17 +1,21 @@
 /**
  * Authentication Service
  * Handles user login, registration, and session management.
- * Currently uses mock data - replace with actual API calls when integrating.
+ * Connected to the NestJS backend API.
  */
 
-import { setToken, removeToken, mockDelay } from "./api";
+import { apiRequest, setToken, removeToken, getToken } from "./api";
 
 export interface User {
     id: string;
     email: string;
     name: string;
     balance: number;
+    hold?: number;
+    availableBalance?: number;
     createdAt: string;
+    wonAuctions?: any[];
+    createdAuctions?: any[];
 }
 
 export interface LoginCredentials {
@@ -27,71 +31,52 @@ export interface RegisterData {
 
 export interface AuthResponse {
     user: User;
-    token: string;
+    accessToken: string;
 }
-
-// Mock user for demo
-const mockUser: User = {
-    id: "user-1",
-    email: "demo@livebid.com",
-    name: "Demo User",
-    balance: 15750.00,
-    createdAt: "2024-01-15",
-};
-
-// Mock JWT token
-const mockToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEiLCJlbWFpbCI6ImRlbW9AbGl2ZWJpZC5jb20ifQ.mock";
 
 /**
  * Login with email and password
  */
-export const login = async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    await mockDelay(1000);
-
-    // Mock validation
-    if (!credentials.email || !credentials.password) {
-        throw new Error("Email and password are required");
-    }
-
-    // Mock: Accept any non-empty credentials
-    if (credentials.password.length < 6) {
-        throw new Error("Invalid email or password");
-    }
+export const login = async (credentials: LoginCredentials): Promise<{ user: User; token: string }> => {
+    const response = await apiRequest<AuthResponse>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify(credentials),
+    });
 
     // Store token
-    setToken(mockToken);
+    setToken(response.accessToken);
 
     return {
-        user: { ...mockUser, email: credentials.email },
-        token: mockToken,
+        user: {
+            ...response.user,
+            name: response.user.email.split("@")[0],
+        },
+        token: response.accessToken,
     };
 };
 
 /**
  * Register a new user
  */
-export const register = async (data: RegisterData): Promise<AuthResponse> => {
-    await mockDelay(1000);
-
-    // Mock validation
-    if (!data.email || !data.password || !data.name) {
-        throw new Error("All fields are required");
-    }
-
-    if (data.password.length < 6) {
-        throw new Error("Password must be at least 6 characters");
-    }
+export const register = async (data: RegisterData): Promise<{ user: User; token: string }> => {
+    const response = await apiRequest<AuthResponse>("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+            email: data.email,
+            password: data.password,
+            name: data.name,
+        }),
+    });
 
     // Store token
-    setToken(mockToken);
+    setToken(response.accessToken);
 
     return {
         user: {
-            ...mockUser,
-            email: data.email,
-            name: data.name,
+            ...response.user,
+            name: data.name || response.user.email.split("@")[0],
         },
-        token: mockToken,
+        token: response.accessToken,
     };
 };
 
@@ -106,22 +91,50 @@ export const logout = (): void => {
  * Get current user profile
  */
 export const getCurrentUser = async (): Promise<User | null> => {
-    await mockDelay(300);
+    const token = getToken();
+    if (!token) return null;
 
-    // In real app, would verify token and fetch user:
-    // return apiRequest<User>("/users/me");
+    try {
+        const profile = await apiRequest<{
+            id: string;
+            email: string;
+            name: string;
+            balance: number;
+            hold: number;
+            availableBalance: number;
+            createdAt: string;
+            wonAuctions: any[];
+            createdAuctions: any[];
+        }>("/users/me");
 
-    return mockUser;
+        return {
+            id: profile.id,
+            email: profile.email,
+            name: profile.name || profile.email.split("@")[0],
+            balance: profile.balance,
+            hold: profile.hold,
+            availableBalance: profile.availableBalance,
+            createdAt: profile.createdAt,
+            wonAuctions: profile.wonAuctions,
+            createdAuctions: profile.createdAuctions,
+        };
+    } catch (error) {
+        // Token invalid or expired
+        removeToken();
+        return null;
+    }
 };
 
 /**
- * Update user balance (mock)
+ * Update user balance (mock - for UI purposes)
+ * In real app, this should fetch current balance from backend
  */
 export const updateBalance = async (amount: number): Promise<User> => {
-    await mockDelay(500);
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
 
     return {
-        ...mockUser,
-        balance: mockUser.balance + amount,
+        ...user,
+        balance: user.balance + amount,
     };
 };

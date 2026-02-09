@@ -4,8 +4,8 @@
  * Replace with actual backend endpoints when integrating.
  */
 
-// API base URL - update this when backend is ready
-export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+// API base URL - using proxy in vite.config.ts
+export const API_BASE_URL = "/api";
 
 // Token storage key
 const TOKEN_KEY = "livebid_token";

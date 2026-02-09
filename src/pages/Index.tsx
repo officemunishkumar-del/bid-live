@@ -1,137 +1,125 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { auctionItems, auctionHouses, featuredAuctions, searchCategories } from "@/data/mockData";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { auctionHouses, featuredAuctions, searchCategories, AuctionItem as UIAuctionItem } from "@/data/mockData";
 import ItemCard from "@/components/auction/ItemCard";
-
-const categoryIcons = [
-  { name: "Art", icon: "🎨" },
-  { name: "Jewelry", icon: "💎" },
-  { name: "Furniture", icon: "🪑" },
-  { name: "Coins", icon: "🪙" },
-  { name: "Fashion", icon: "👗" },
-  { name: "Watches", icon: "⌚" },
-];
+import { getAuctions } from "@/services/auctionService";
 
 const HomePage = () => {
   const [carouselIdx, setCarouselIdx] = useState(0);
+  const [trendingItems, setTrendingItems] = useState<UIAuctionItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const featured = featuredAuctions[carouselIdx];
+
+  useEffect(() => {
+    const fetchTrending = async () => {
+      try {
+        const response = await getAuctions();
+        setTrendingItems(response.data.slice(0, 8));
+      } catch (error) {
+        console.error("Failed to fetch trending auctions:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTrending();
+  }, []);
 
   return (
     <div>
       {/* Hero */}
-      <section className="py-16 md:py-24 text-center bg-secondary">
-        <div className="container mx-auto px-4">
-          <h1 className="text-4xl md:text-6xl font-serif font-bold text-foreground mb-4">
-            Let's go treasure-hunting.
-          </h1>
-          <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-            Discover extraordinary items from the world's top auction houses
-          </p>
-          <div className="flex max-w-md mx-auto gap-2 mb-10">
-            <input
-              type="email"
-              placeholder="Enter your email for updates"
-              className="flex-1 h-11 px-4 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <button className="h-11 px-6 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
-              Subscribe
+      <section className="relative h-[480px] bg-secondary overflow-hidden">
+        <div className="container mx-auto px-4 h-full flex flex-col md:flex-row items-center">
+          <div className="md:w-1/2 z-10 py-10 md:py-0">
+            <span className="inline-block px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full mb-4">
+              {featured.category}
+            </span>
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-foreground mb-4 leading-tight">
+              {featured.title}
+            </h1>
+            <p className="text-muted-foreground text-lg mb-8 max-w-lg">
+              {featured.description}
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Link to="/search" className="h-11 px-8 rounded-md bg-primary text-primary-foreground font-semibold text-sm flex items-center hover:bg-primary/90 transition-colors">
+                Bid Now
+              </Link>
+              <button className="h-11 px-8 rounded-md border border-input bg-background text-sm font-semibold hover:bg-muted transition-colors">
+                Sell Your Item
+              </button>
+            </div>
+          </div>
+          <div className="md:w-1/2 relative h-full flex items-center justify-center p-4">
+            <div className="relative w-full max-w-md aspect-square rounded-2xl overflow-hidden shadow-2xl transition-all duration-700">
+              <img
+                src={featured.image}
+                alt={featured.title}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+              <div className="absolute bottom-6 left-6 right-6 text-white uppercase tracking-wider text-xs font-bold flex justify-between">
+                <span>Lot: {featured.lotNumber}</span>
+                <span>Estimate: {featured.estimate}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setCarouselIdx((curr) => (curr - 1 + featuredAuctions.length) % featuredAuctions.length)}
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/80 shadow flex items-center justify-center hover:bg-background transition-colors z-20"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setCarouselIdx((curr) => (curr + 1) % featuredAuctions.length)}
+              className="absolute right-0 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-background/80 shadow flex items-center justify-center hover:bg-background transition-colors z-20"
+            >
+              <ChevronRight className="h-5 w-5" />
             </button>
           </div>
-          <div className="flex justify-center gap-6 md:gap-10 flex-wrap">
-            {categoryIcons.map((cat) => (
-              <Link key={cat.name} to={`/search?category=${cat.name}`} className="flex flex-col items-center gap-2 group">
-                <div className="w-16 h-16 rounded-full bg-background flex items-center justify-center text-2xl shadow-sm group-hover:shadow-md transition-shadow">
-                  {cat.icon}
+        </div>
+      </section>
+
+      {/* Category Icons */}
+      <section className="py-12 border-b border-border bg-background">
+        <div className="container mx-auto px-4">
+          <div className="flex lg:grid lg:grid-cols-5 flex-nowrap overflow-x-auto gap-8 justify-between pb-4 lg:pb-0 scrollbar-hide">
+            {searchCategories.slice(0, 5).map((category, i) => (
+              <div key={i} className="flex flex-col items-center group cursor-pointer min-w-[100px]">
+                <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center text-2xl mb-3 group-hover:bg-primary/5 transition-all group-hover:scale-110">
+                  {category.icon}
                 </div>
-                <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">{cat.name}</span>
-              </Link>
+                <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{category.name}</span>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Featured Auctions Carousel */}
-      <section className="bg-primary py-12">
+      {/* Auction Houses */}
+      <section className="py-10 bg-background">
         <div className="container mx-auto px-4">
-          <h2 className="text-2xl font-serif font-bold text-primary-foreground mb-6">Featured Auctions</h2>
-          <div className="relative">
-            <div className="flex gap-6 items-stretch">
-              {/* Mosaic images */}
-              <div className="hidden md:grid grid-cols-2 gap-2 w-1/2 h-72">
-                <img src={featured.images[0]} alt="" className="col-span-1 row-span-2 w-full h-full object-cover rounded-lg" />
-                {featured.images[1] && <img src={featured.images[1]} alt="" className="w-full h-full object-cover rounded-lg" />}
-                {featured.images[2] && <img src={featured.images[2]} alt="" className="w-full h-full object-cover rounded-lg" />}
-              </div>
-              <div className="md:hidden w-full h-48">
-                <img src={featured.images[0]} alt="" className="w-full h-full object-cover rounded-lg" />
-              </div>
-              {/* Info */}
-              <div className="flex flex-col justify-center text-primary-foreground">
-                <p className="text-sm opacity-70 mb-1">{featured.auctioneer}</p>
-                <h3 className="text-xl md:text-2xl font-serif font-bold mb-2">{featured.title}</h3>
-                <p className="text-sm opacity-70 mb-1">{featured.date}</p>
-                <p className="text-sm opacity-70 mb-4">{featured.location} • {featured.lotCount} Lots</p>
-                <Link
-                  to={`/search`}
-                  className="inline-flex items-center gap-2 border border-primary-foreground/50 text-primary-foreground px-5 py-2 rounded-md text-sm font-medium hover:bg-primary-foreground/10 transition-colors w-fit"
-                >
-                  EXPLORE <ChevronRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </div>
-            {/* Nav */}
-            <div className="flex items-center justify-center gap-3 mt-6">
-              <button onClick={() => setCarouselIdx((i) => (i - 1 + featuredAuctions.length) % featuredAuctions.length)} className="text-primary-foreground/60 hover:text-primary-foreground">
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              {featuredAuctions.map((_, i) => (
-                <button key={i} onClick={() => setCarouselIdx(i)} className={`w-2 h-2 rounded-full transition-colors ${i === carouselIdx ? "bg-primary-foreground" : "bg-primary-foreground/30"}`} />
-              ))}
-              <button onClick={() => setCarouselIdx((i) => (i + 1) % featuredAuctions.length)} className="text-primary-foreground/60 hover:text-primary-foreground">
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </div>
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-xl font-serif font-bold text-foreground">Featured Auction Houses</h2>
+            <Link to="/search" className="text-primary text-sm font-medium hover:underline flex items-center gap-1">
+              View All <ChevronRight className="h-4 w-4" />
+            </Link>
           </div>
-        </div>
-      </section>
-
-      {/* Featured Auctioneers */}
-      <section className="py-10 border-b border-border">
-        <div className="container mx-auto px-4">
-          <h2 className="text-xl font-serif font-bold text-foreground mb-6">Featured Auctioneers</h2>
-          <div className="flex gap-8 overflow-x-auto pb-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {auctionHouses.map((house) => (
-              <div key={house.id} className="flex-shrink-0 flex flex-col items-center gap-2 grayscale hover:grayscale-0 transition-all cursor-pointer">
-                <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center text-2xl font-serif font-bold text-muted-foreground">
-                  {house.logo}
+              <div key={house.id} className="group cursor-pointer">
+                <div className="relative h-48 rounded-lg overflow-hidden mb-3">
+                  <img
+                    src={house.image}
+                    alt={house.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors"></div>
+                  <div className="absolute top-3 left-3 px-2 py-0.5 bg-white/90 backdrop-blur rounded text-[10px] font-bold text-foreground flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-urgency rounded-full animate-pulse"></span> LIVE
+                  </div>
                 </div>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">{house.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Searches to Follow */}
-      <section className="py-10 border-b border-border">
-        <div className="container mx-auto px-4">
-          <h2 className="text-xl font-serif font-bold text-foreground mb-6">Searches to Follow</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {searchCategories.map((cat) => (
-              <div key={cat.id} className="border border-border rounded-lg overflow-hidden hover-lift">
-                <div className="grid grid-cols-3 gap-0.5 h-28">
-                  {cat.images.map((img, i) => (
-                    <img key={i} src={img} alt="" className="w-full h-full object-cover" loading="lazy" />
-                  ))}
-                </div>
-                <div className="p-3">
-                  <h3 className="font-semibold text-sm font-sans text-card-foreground">{cat.name}</h3>
-                  <p className="text-xs text-muted-foreground mt-1">{cat.itemCount.toLocaleString()} items • {cat.followerCount.toLocaleString()} followers</p>
-                  <button className="mt-3 w-full h-9 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors">
-                    FOLLOW THIS SEARCH
-                  </button>
-                </div>
+                <h3 className="font-serif font-bold text-foreground group-hover:text-primary transition-colors">{house.name}</h3>
+                <p className="text-xs text-muted-foreground mt-1">{house.location} • {house.upcomingCount} Upcoming</p>
               </div>
             ))}
           </div>
@@ -142,15 +130,55 @@ const HomePage = () => {
       <section className="py-10">
         <div className="container mx-auto px-4">
           <h2 className="text-xl font-serif font-bold text-foreground mb-6">Trending Items</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {auctionItems.slice(0, 8).map((item) => (
-              <ItemCard key={item.id} item={item} />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-10">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+              <p className="text-sm text-muted-foreground">Fetching latest treasures...</p>
+            </div>
+          ) : trendingItems.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {trendingItems.map((item) => (
+                <ItemCard key={item.id} item={item} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10 border border-dashed rounded-lg">
+              <p className="text-muted-foreground">No auctions found matching your search.</p>
+            </div>
+          )}
           <div className="text-center mt-8">
             <Link to="/search" className="inline-flex items-center gap-1 text-primary font-medium text-sm hover:underline">
               View All Items <ChevronRight className="h-4 w-4" />
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust Banner */}
+      <section className="py-16 bg-secondary border-t border-border mt-10">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-background rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-border">
+                🛡️
+              </div>
+              <h3 className="font-serif font-bold mb-2">Authenticated Items</h3>
+              <p className="text-sm text-muted-foreground">Every listing is verified by our team of experts for authenticity and condition.</p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-background rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-border">
+                💼
+              </div>
+              <h3 className="font-serif font-bold mb-2">Secure Transactions</h3>
+              <p className="text-sm text-muted-foreground">We use industry-standard encryption to protect your financial information and bids.</p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-background rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-border">
+                🚚
+              </div>
+              <h3 className="font-serif font-bold mb-2">Global Shipping</h3>
+              <p className="text-sm text-muted-foreground">Safe and secure white-glove shipping to over 150 countries worldwide.</p>
+            </div>
           </div>
         </div>
       </section>

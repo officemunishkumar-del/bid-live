@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Lock, Star, AlertTriangle, Wifi, WifiOff } from "lucide-react";
-import { auctionItems, formatCurrency, getTimeRemaining } from "@/data/mockData";
+import { ChevronLeft, ChevronRight, Lock, Star, AlertTriangle, Wifi, WifiOff, Loader2 } from "lucide-react";
+import { formatCurrency, getTimeRemaining, AuctionItem as UIAuctionItem } from "@/data/mockData";
 import CountdownTimer from "@/components/auction/CountdownTimer";
 import SaveButton from "@/components/auction/SaveButton";
 import ItemCard from "@/components/auction/ItemCard";
@@ -11,73 +11,127 @@ import StatusBadge from "@/components/auction/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { socketService, ConnectionStateEvent } from "@/services/socketService";
+import { getAuctionById, placeBid } from "@/services/auctionService";
 
 const MIN_BID_INCREMENT = 100;
 
 const ItemDetailPage = () => {
   const { id } = useParams();
   const { toast } = useToast();
-  const { user, isAuthenticated } = useAuth();
-  const item = auctionItems.find((i) => i.id === id);
+  const { user, isAuthenticated, refreshUser } = useAuth();
+
+  const [item, setItem] = useState<UIAuctionItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [mainImgIdx, setMainImgIdx] = useState(0);
-  const [activeTab, setActiveTab] = useState<"description" | "shipping" | "condition" | "bids">("description");
+  const [activeTab, setActiveTab] = useState<"description" | "bids">("description");
   const [selectedBid, setSelectedBid] = useState(0);
   const [isPlacingBid, setIsPlacingBid] = useState(false);
-  const [currentBid, setCurrentBid] = useState(item?.currentBid || 0);
+  const [currentBid, setCurrentBid] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [auctionStatus, setAuctionStatus] = useState<"active" | "expired" | "sold">("active");
 
-  // Check auction status
+  // Load item data from backend
+  useEffect(() => {
+    const loadItem = async () => {
+      if (!id) return;
+      setIsLoading(true);
+      try {
+        const data = await getAuctionById(id);
+        if (data) {
+          setItem(data);
+          setCurrentBid(data.currentBid);
+          // Check if expired
+          const timeDetails = getTimeRemaining(data.endTime);
+          if (timeDetails.total <= 0) {
+            setAuctionStatus(data.status === "sold" ? "sold" : "expired");
+          } else {
+            setAuctionStatus(data.status as any);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load auction:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load auction details.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadItem();
+  }, [id, toast]);
+
+  // Check auction status periodically
   useEffect(() => {
     if (!item) return;
 
-    const checkStatus = () => {
+    const interval = setInterval(() => {
       const timeRemaining = getTimeRemaining(item.endTime);
-      if (timeRemaining.total <= 0) {
+      if (timeRemaining.total <= 0 && auctionStatus === "active") {
         setAuctionStatus("expired");
       }
-    };
-
-    checkStatus();
-    const interval = setInterval(checkStatus, 1000);
+    }, 1000);
     return () => clearInterval(interval);
-  }, [item]);
+  }, [item, auctionStatus]);
 
-  // Listen for connection state changes
+  // Socket connection listener
   useEffect(() => {
     const handleConnectionState = (data: unknown) => {
       const state = data as ConnectionStateEvent;
       setIsOnline(state.connected);
       setIsReconnecting(state.reconnecting);
+
+      if (state.connected && !state.reconnecting && id) {
+        // Just reconnected, join the room again
+        socketService.joinAuction(id);
+      }
     };
 
     socketService.on("CONNECTION_STATE", handleConnectionState);
-    return () => socketService.off("CONNECTION_STATE", handleConnectionState);
-  }, []);
+    if (id) socketService.joinAuction(id);
+
+    return () => {
+      socketService.off("CONNECTION_STATE", handleConnectionState);
+      if (id) socketService.leaveAuction(id);
+    };
+  }, [id]);
 
   // Update current bid from socket events
   useEffect(() => {
-    if (!item) return;
+    if (!id) return;
 
     const handleNewBid = (data: unknown) => {
-      const event = data as { auctionId: string; amount: number };
-      if (event.auctionId === item.id) {
+      const event = data as { auctionId: string; amount: number; bidderName: string };
+      if (event.auctionId === id) {
         setCurrentBid(event.amount);
+        toast({
+          title: "New Bid!",
+          description: `${event.bidderName || "Someone"} placed a bid of ${formatCurrency(event.amount)}`,
+        });
       }
     };
 
     const handleAuctionSold = (data: unknown) => {
       const event = data as { auctionId: string };
-      if (event.auctionId === item.id) {
+      if (event.auctionId === id) {
         setAuctionStatus("sold");
+        toast({
+          title: "Auction Sold!",
+          description: "This item has been sold.",
+        });
       }
     };
 
     const handleAuctionExpired = (data: unknown) => {
       const event = data as { auctionId: string };
-      if (event.auctionId === item.id) {
+      if (event.auctionId === id) {
         setAuctionStatus("expired");
+        toast({
+          title: "Auction Expired",
+          description: "This auction ended with no bids.",
+        });
       }
     };
 
@@ -90,45 +144,38 @@ const ItemDetailPage = () => {
       socketService.off("AUCTION_SOLD", handleAuctionSold);
       socketService.off("AUCTION_EXPIRED", handleAuctionExpired);
     };
-  }, [item]);
+  }, [id, toast]);
 
-  if (!item) {
+  if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-20 text-center">
-        <h1 className="text-2xl font-serif">Item not found</h1>
-        <Link to="/search" className="text-primary hover:underline text-sm mt-2 inline-block">Back to search</Link>
+      <div className="container mx-auto px-4 py-20 flex flex-col items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">Loading masterpiece details...</p>
       </div>
     );
   }
 
-  // Calculate bid options based on currentBid (not startingPrice)
+  if (!item) {
+    return (
+      <div className="container mx-auto px-4 py-20 text-center">
+        <h1 className="text-2xl font-serif font-bold mb-4">Item Not Found</h1>
+        <Link to="/search" className="text-primary hover:underline">Return to Search</Link>
+      </div>
+    );
+  }
+
   const minNextBid = currentBid + MIN_BID_INCREMENT;
   const bidOptions = [minNextBid, minNextBid + 200, minNextBid + 400];
   const selectedBidAmount = bidOptions[selectedBid];
-
-  // Balance validation
   const userBalance = user?.balance || 0;
   const hasInsufficientBalance = isAuthenticated && userBalance < selectedBidAmount;
 
-  // Check if bidding is allowed
   const isBiddingDisabled =
     isPlacingBid ||
     !isOnline ||
     auctionStatus !== "active" ||
     hasInsufficientBalance ||
     !isAuthenticated;
-
-  const currentItemIdx = auctionItems.findIndex((i) => i.id === id);
-  const prevItem = auctionItems[currentItemIdx - 1];
-  const nextItem = auctionItems[currentItemIdx + 1];
-  const relatedItems = auctionItems.filter((i) => i.category === item.category && i.id !== item.id).slice(0, 6);
-
-  const tabs = [
-    { key: "description" as const, label: "Description" },
-    { key: "shipping" as const, label: "Shipping & Payment" },
-    { key: "condition" as const, label: "Condition Report" },
-    { key: "bids" as const, label: "Bid History" },
-  ];
 
   const handlePlaceBid = async () => {
     if (!isAuthenticated) {
@@ -140,57 +187,31 @@ const ItemDetailPage = () => {
       return;
     }
 
-    if (hasInsufficientBalance) {
-      toast({
-        title: "Insufficient Balance",
-        description: `You need ${formatCurrency(selectedBidAmount - userBalance, item.currency)} more to place this bid.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!isOnline) {
-      toast({
-        title: "Network Offline",
-        description: "Please check your internet connection and try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (auctionStatus !== "active") {
-      toast({
-        title: "Auction Ended",
-        description: "This auction has already ended.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsPlacingBid(true);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Mock success (80% chance) or failure (20% chance - concurrency error)
-    if (Math.random() > 0.2) {
-      setCurrentBid(selectedBidAmount);
-      toast({
-        title: "Bid Placed Successfully!",
-        description: `Your bid of ${formatCurrency(selectedBidAmount, item.currency)} has been placed.`,
+    try {
+      const result = await placeBid({
+        auctionId: item.id,
+        amount: selectedBidAmount,
       });
-    } else {
-      // Simulate concurrency failure - someone else bid higher
-      const newCurrentBid = selectedBidAmount + 100;
-      setCurrentBid(newCurrentBid);
+
+      if (result.success) {
+        setCurrentBid(selectedBidAmount);
+        await refreshUser();
+        toast({
+          title: "Bid Successful!",
+          description: result.message,
+        });
+      }
+    } catch (error: any) {
       toast({
-        title: "Outbid!",
-        description: `Someone placed a higher bid. New current price is ${formatCurrency(newCurrentBid, item.currency)}. Please try again.`,
+        title: "Bid Failed",
+        description: error.message || "An unexpected error occurred",
         variant: "destructive",
       });
+    } finally {
+      setIsPlacingBid(false);
     }
-
-    setIsPlacingBid(false);
   };
 
   const getButtonText = () => {
@@ -210,15 +231,9 @@ const ItemDetailPage = () => {
         <div className={`py-2 px-4 text-center text-sm ${isReconnecting ? "bg-warning/20 text-warning" : "bg-urgency/20 text-urgency"}`}>
           <div className="container mx-auto flex items-center justify-center gap-2">
             {isReconnecting ? (
-              <>
-                <Wifi className="h-4 w-4 animate-pulse" />
-                <span>Reconnecting...</span>
-              </>
+              <><Wifi className="h-4 w-4 animate-pulse" /><span>Reconnecting...</span></>
             ) : (
-              <>
-                <WifiOff className="h-4 w-4" />
-                <span>You are offline. Please check your connection.</span>
-              </>
+              <><WifiOff className="h-4 w-4" /><span>You are offline. Please check your connection.</span></>
             )}
           </div>
         </div>
@@ -237,10 +252,6 @@ const ItemDetailPage = () => {
             <ViewerCount auctionId={item.id} />
             <CountdownTimer endTime={item.endTime} showLabel={false} />
             <span>Lot: {item.lotNumber}</span>
-            <div className="flex gap-1">
-              {prevItem && <Link to={`/item/${prevItem.id}`} className="h-7 w-7 rounded border border-input flex items-center justify-center hover:bg-muted"><ChevronLeft className="h-3 w-3" /></Link>}
-              {nextItem && <Link to={`/item/${nextItem.id}`} className="h-7 w-7 rounded border border-input flex items-center justify-center hover:bg-muted"><ChevronRight className="h-3 w-3" /></Link>}
-            </div>
           </div>
         </div>
       </div>
@@ -248,68 +259,36 @@ const ItemDetailPage = () => {
       {/* Main content */}
       <div className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Image Gallery - 2 cols */}
           <div className="lg:col-span-2">
             <div className="flex gap-3">
-              {/* Thumbnails */}
-              {item.images.length > 1 && (
-                <div className="hidden md:flex flex-col gap-2 w-16 flex-shrink-0">
-                  {item.images.map((img, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setMainImgIdx(i)}
-                      className={`w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${i === mainImgIdx ? "border-primary" : "border-transparent"}`}
-                    >
-                      <img src={img} alt="" className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
-              {/* Main image */}
               <div className="relative flex-1 aspect-square rounded-lg overflow-hidden bg-muted">
                 <img src={item.images[mainImgIdx]} alt={item.title} className="w-full h-full object-contain" />
-                {item.images.length > 1 && (
-                  <>
-                    <button onClick={() => setMainImgIdx((i) => (i - 1 + item.images.length) % item.images.length)} className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 rounded-full p-1.5 shadow hover:bg-background"><ChevronLeft className="h-4 w-4" /></button>
-                    <button onClick={() => setMainImgIdx((i) => (i + 1) % item.images.length)} className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 rounded-full p-1.5 shadow hover:bg-background"><ChevronRight className="h-4 w-4" /></button>
-                  </>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Bidding Widget */}
           <div className="lg:col-span-1">
-            <div className="border border-border rounded-lg p-5 sticky top-28">
+            <div className="border border-border rounded-lg p-5 sticky top-4">
               <div className="flex justify-between items-start mb-3">
-                <div className="flex-1">
-                  <h1 className="text-lg font-serif font-bold text-foreground leading-snug">{item.title}</h1>
-                </div>
+                <h1 className="text-lg font-serif font-bold text-foreground leading-snug">{item.title}</h1>
                 <SaveButton showLabel className="ml-2" />
               </div>
 
               <p className="text-sm text-muted-foreground mb-1">
-                Est. {formatCurrency(item.estimateLow, item.currency)}-{formatCurrency(item.estimateHigh, item.currency)}
+                Est. {formatCurrency(item.estimateLow)}-{formatCurrency(item.estimateHigh)}
               </p>
               <div className="mb-4">
                 <CountdownTimer endTime={item.endTime} showLabel={false} className="text-sm" />
               </div>
 
-              {/* User Balance Display */}
               {isAuthenticated && (
                 <div className="bg-secondary rounded-md p-3 mb-4">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Your Balance</span>
                     <span className={`font-semibold ${hasInsufficientBalance ? "text-urgency" : "text-foreground"}`}>
-                      {formatCurrency(userBalance, item.currency)}
+                      {formatCurrency(userBalance)}
                     </span>
                   </div>
-                  {hasInsufficientBalance && (
-                    <div className="flex items-center gap-1 mt-2 text-urgency text-xs">
-                      <AlertTriangle className="h-3 w-3" />
-                      <span>Insufficient funds for this bid</span>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -319,108 +298,63 @@ const ItemDetailPage = () => {
                   <Lock className="h-3 w-3 text-success" />
                   <span className="text-xs text-success font-medium">SECURE</span>
                 </div>
-                <p className="text-2xl font-bold text-foreground mb-1">{formatCurrency(currentBid, item.currency)}</p>
-                <p className="text-xs text-muted-foreground mb-4">{item.bidCount} bids • Min next bid: {formatCurrency(minNextBid, item.currency)}</p>
+                <p className="text-2xl font-bold text-foreground mb-1">{formatCurrency(currentBid)}</p>
+                <p className="text-xs text-muted-foreground mb-4">Min next bid: {formatCurrency(minNextBid)}</p>
 
                 {auctionStatus === "active" ? (
                   <>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Set Your Max Bid</p>
                     <div className="flex gap-2 mb-3">
                       {bidOptions.map((amt, i) => (
                         <button
                           key={i}
                           onClick={() => setSelectedBid(i)}
-                          disabled={!isAuthenticated || auctionStatus !== "active"}
-                          className={`flex-1 h-9 rounded-md border text-sm font-medium transition-colors ${selectedBid === i ? "border-primary bg-primary/5 text-primary" : "border-input hover:bg-muted"} disabled:opacity-50 disabled:cursor-not-allowed`}
+                          className={`flex-1 h-9 rounded-md border text-sm font-medium transition-colors ${selectedBid === i ? "border-primary bg-primary/5 text-primary" : "border-input hover:bg-muted"}`}
                         >
-                          {formatCurrency(amt, item.currency)}
+                          {formatCurrency(amt)}
                         </button>
                       ))}
                     </div>
-                    <select
-                      className="w-full h-9 px-3 mb-4 rounded-md border border-input bg-background text-sm disabled:opacity-50"
-                      disabled={!isAuthenticated || auctionStatus !== "active"}
-                    >
-                      <option>Or select a higher max bid amount</option>
-                      {[600, 800, 1000, 1500, 2000].map((x) => (
-                        <option key={x} value={minNextBid + x}>{formatCurrency(minNextBid + x, item.currency)}</option>
-                      ))}
-                    </select>
 
                     <button
                       onClick={handlePlaceBid}
                       disabled={isBiddingDisabled}
-                      className="w-full h-11 rounded-md bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors mb-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full h-11 rounded-md bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors mb-3 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
+                      {isPlacingBid && <Loader2 className="h-4 w-4 animate-spin" />}
                       {getButtonText()}
                     </button>
-
-                    {!isAuthenticated && (
-                      <p className="text-xs text-center text-muted-foreground">
-                        <Link to="/profile" className="text-primary hover:underline">Login or Register</Link> to place a bid
-                      </p>
-                    )}
                   </>
                 ) : (
                   <div className="bg-muted rounded-md p-4 text-center">
-                    <p className="text-sm font-medium text-foreground">
-                      {auctionStatus === "sold" ? "This item has been sold" : "This auction has ended"}
-                    </p>
-                    <Link to="/search" className="text-primary text-sm hover:underline mt-2 inline-block">
-                      Browse other auctions
-                    </Link>
+                    <p className="text-sm font-medium">{auctionStatus === "sold" ? "Sold" : "Ended"}</p>
+                    <Link to="/search" className="text-primary text-sm hover:underline mt-2 inline-block">Browse others</Link>
                   </div>
                 )}
-              </div>
-
-              {/* Auctioneer info */}
-              <div className="border-t border-border mt-5 pt-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-serif font-bold text-muted-foreground">
-                  {item.auctioneer.charAt(0)}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">{item.auctioneer}</p>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Star className="h-3 w-3 fill-warning text-warning" />
-                    <span>{item.auctioneerRating} ({item.auctioneerReviews.toLocaleString()})</span>
-                  </div>
-                </div>
-                <button className="text-xs text-primary font-medium hover:underline">Follow</button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="mt-10 border-t border-border pt-6">
           <div className="flex gap-6 border-b border-border mb-6">
-            {tabs.map((tab) => (
+            {["description", "bids"].map((tab) => (
               <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`pb-3 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                key={tab}
+                onClick={() => setActiveTab(tab as any)}
+                className={`pb-3 text-sm font-medium capitalize border-b-2 -mb-px ${activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
               >
-                {tab.label}
+                {tab}
               </button>
             ))}
           </div>
           <div className="max-w-3xl">
-            {activeTab === "description" && <p className="text-sm text-foreground leading-relaxed">{item.description}</p>}
-            {activeTab === "shipping" && <p className="text-sm text-foreground leading-relaxed">{item.shippingInfo}</p>}
-            {activeTab === "condition" && <p className="text-sm text-foreground leading-relaxed">{item.conditionReport}</p>}
-            {activeTab === "bids" && <BidHistory auctionId={item.id} currency={item.currency} />}
+            {activeTab === "description" ? (
+              <p className="text-sm text-foreground leading-relaxed">{item.description}</p>
+            ) : (
+              <BidHistory auctionId={item.id} currency="$" />
+            )}
           </div>
         </div>
-
-        {/* Related Items */}
-        {relatedItems.length > 0 && (
-          <div className="mt-12">
-            <h2 className="text-xl font-serif font-bold text-foreground mb-6">Related Items</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-              {relatedItems.map((ri) => <ItemCard key={ri.id} item={ri} />)}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
