@@ -1,13 +1,21 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, Bell, Heart, ShoppingCart, User, Menu, X } from "lucide-react";
+import { Search, Bell, Heart, ShoppingCart, User, Menu, X, Plus, LogOut } from "lucide-react";
 import { categories } from "@/data/mockData";
+import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 
 const Header = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const { user, isAuthenticated, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    setShowUserDropdown(false);
+  };
 
   return (
     <>
@@ -43,6 +51,15 @@ const Header = () => {
 
             {/* Action Icons */}
             <div className="hidden md:flex items-center gap-1">
+              {isAuthenticated && (
+                <Link
+                  to="/create-auction"
+                  className="flex flex-col items-center px-3 py-1 text-primary hover:text-primary/80 transition-colors"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span className="text-[10px] mt-0.5">Create</span>
+                </Link>
+              )}
               {[
                 { icon: Bell, label: "Alerts" },
                 { icon: Heart, label: "My Items" },
@@ -53,13 +70,57 @@ const Header = () => {
                   <span className="text-[10px] mt-0.5">{label}</span>
                 </button>
               ))}
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="flex flex-col items-center px-3 py-1 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <User className="h-5 w-5" />
-                <span className="text-[10px] mt-0.5">Account</span>
-              </button>
+
+              {/* User Account */}
+              <div className="relative">
+                {isAuthenticated ? (
+                  <button
+                    onClick={() => setShowUserDropdown(!showUserDropdown)}
+                    className="flex flex-col items-center px-3 py-1 text-foreground transition-colors"
+                  >
+                    <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center text-[10px] font-bold text-primary-foreground">
+                      {user?.name?.charAt(0) || "U"}
+                    </div>
+                    <span className="text-[10px] mt-0.5">{user?.name?.split(" ")[0] || "Account"}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="flex flex-col items-center px-3 py-1 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <User className="h-5 w-5" />
+                    <span className="text-[10px] mt-0.5">Sign In</span>
+                  </button>
+                )}
+
+                {/* User Dropdown */}
+                {showUserDropdown && isAuthenticated && (
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-background border border-border rounded-lg shadow-lg py-2 z-50">
+                    <Link
+                      to="/profile"
+                      onClick={() => setShowUserDropdown(false)}
+                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                    >
+                      My Profile
+                    </Link>
+                    <Link
+                      to="/create-auction"
+                      onClick={() => setShowUserDropdown(false)}
+                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                    >
+                      Create Auction
+                    </Link>
+                    <div className="border-t border-border my-1" />
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-2 text-sm text-urgency hover:bg-muted transition-colors flex items-center gap-2"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Log Out
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Mobile menu toggle */}
@@ -114,13 +175,34 @@ const Header = () => {
                   {cat}
                 </Link>
               ))}
-              <div className="border-t border-border pt-3 flex gap-4">
-                <button onClick={() => { setShowAuthModal(true); setShowMobileMenu(false); }} className="text-sm text-primary font-medium">Sign In</button>
+              <div className="border-t border-border pt-3 flex flex-col gap-2">
+                {isAuthenticated ? (
+                  <>
+                    <Link to="/profile" onClick={() => setShowMobileMenu(false)} className="text-sm text-foreground font-medium">
+                      My Profile
+                    </Link>
+                    <Link to="/create-auction" onClick={() => setShowMobileMenu(false)} className="text-sm text-primary font-medium">
+                      + Create Auction
+                    </Link>
+                    <button onClick={() => { handleLogout(); setShowMobileMenu(false); }} className="text-sm text-urgency font-medium text-left">
+                      Log Out
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={() => { setShowAuthModal(true); setShowMobileMenu(false); }} className="text-sm text-primary font-medium">
+                    Sign In
+                  </button>
+                )}
               </div>
             </div>
           </div>
         )}
       </header>
+
+      {/* Click outside to close dropdown */}
+      {showUserDropdown && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowUserDropdown(false)} />
+      )}
 
       <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
     </>

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface AuthModalProps {
   open: boolean;
@@ -10,6 +12,50 @@ interface AuthModalProps {
 const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
+  const { login, register } = useAuth();
+  const { toast } = useToast();
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      if (isLogin) {
+        await login(formData.email, formData.password);
+        toast({
+          title: "Welcome back!",
+          description: "You have successfully logged in.",
+        });
+      } else {
+        await register(formData.email, formData.password, formData.name);
+        toast({
+          title: "Account created!",
+          description: "Welcome to LiveBid.",
+        });
+      }
+      onOpenChange(false);
+      setFormData({ name: "", email: "", password: "" });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -36,23 +82,44 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
               {isLogin ? "Log in to your account" : "Create your free account"}
             </p>
 
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+            <form className="space-y-4" onSubmit={handleSubmit}>
               {!isLogin && (
                 <div>
                   <label className="text-xs font-medium text-foreground uppercase tracking-wide">Full Name</label>
-                  <input type="text" placeholder="John Doe" className="mt-1 w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="John Doe"
+                    required={!isLogin}
+                    className="mt-1 w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
                 </div>
               )}
               <div>
-                <label className="text-xs font-medium text-foreground uppercase tracking-wide">Email / Username</label>
-                <input type="text" placeholder="you@example.com" className="mt-1 w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                <label className="text-xs font-medium text-foreground uppercase tracking-wide">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="you@example.com"
+                  required
+                  className="mt-1 w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
               </div>
               <div>
                 <label className="text-xs font-medium text-foreground uppercase tracking-wide">Password</label>
                 <div className="relative mt-1">
                   <input
                     type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
                     placeholder="••••••••"
+                    required
+                    minLength={6}
                     className="w-full h-10 px-3 pr-10 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -60,7 +127,12 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
                   </button>
                 </div>
               </div>
-              <button type="submit" className="w-full h-10 rounded-md bg-accent text-accent-foreground font-semibold text-sm hover:bg-accent/90 transition-colors">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-10 rounded-md bg-accent text-accent-foreground font-semibold text-sm hover:bg-accent/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {isLogin ? "LOG IN" : "CREATE ACCOUNT"}
               </button>
             </form>

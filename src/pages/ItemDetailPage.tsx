@@ -5,13 +5,19 @@ import { auctionItems, formatCurrency } from "@/data/mockData";
 import CountdownTimer from "@/components/auction/CountdownTimer";
 import SaveButton from "@/components/auction/SaveButton";
 import ItemCard from "@/components/auction/ItemCard";
+import BidHistory from "@/components/auction/BidHistory";
+import ViewerCount from "@/components/auction/ViewerCount";
+import StatusBadge from "@/components/auction/StatusBadge";
+import { useToast } from "@/hooks/use-toast";
 
 const ItemDetailPage = () => {
   const { id } = useParams();
+  const { toast } = useToast();
   const item = auctionItems.find((i) => i.id === id);
   const [mainImgIdx, setMainImgIdx] = useState(0);
-  const [activeTab, setActiveTab] = useState<"description" | "shipping" | "condition">("description");
+  const [activeTab, setActiveTab] = useState<"description" | "shipping" | "condition" | "bids">("description");
   const [selectedBid, setSelectedBid] = useState(0);
+  const [isPlacingBid, setIsPlacingBid] = useState(false);
 
   if (!item) {
     return (
@@ -32,7 +38,33 @@ const ItemDetailPage = () => {
     { key: "description" as const, label: "Description" },
     { key: "shipping" as const, label: "Shipping & Payment" },
     { key: "condition" as const, label: "Condition Report" },
+    { key: "bids" as const, label: "Bid History" },
   ];
+
+  const handlePlaceBid = async () => {
+    setIsPlacingBid(true);
+
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const bidAmount = bidOptions[selectedBid];
+
+    // Mock success (80% chance) or failure (20% chance)
+    if (Math.random() > 0.2) {
+      toast({
+        title: "Bid Placed Successfully!",
+        description: `Your bid of ${formatCurrency(bidAmount, item.currency)} has been placed.`,
+      });
+    } else {
+      toast({
+        title: "Bid Failed",
+        description: "Someone placed a higher bid. Please try again with a higher amount.",
+        variant: "destructive",
+      });
+    }
+
+    setIsPlacingBid(false);
+  };
 
   return (
     <div>
@@ -43,8 +75,10 @@ const ItemDetailPage = () => {
             <Link to="/search" className="hover:text-foreground flex items-center gap-1"><ChevronLeft className="h-3 w-3" /> Back</Link>
             <span>|</span>
             <span>{item.category}</span>
+            <StatusBadge status="active" />
           </div>
           <div className="flex items-center gap-4 text-muted-foreground">
+            <ViewerCount auctionId={item.id} />
             <CountdownTimer endTime={item.endTime} showLabel={false} />
             <span>Lot: {item.lotNumber}</span>
             <div className="flex gap-1">
@@ -107,11 +141,12 @@ const ItemDetailPage = () => {
 
               <div className="border-t border-border pt-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs text-muted-foreground">Starting Price</span>
+                  <span className="text-xs text-muted-foreground">Current Bid</span>
                   <Lock className="h-3 w-3 text-success" />
                   <span className="text-xs text-success font-medium">SECURE</span>
                 </div>
-                <p className="text-2xl font-bold text-foreground mb-4">{formatCurrency(item.startingPrice, item.currency)}</p>
+                <p className="text-2xl font-bold text-foreground mb-1">{formatCurrency(item.currentBid, item.currency)}</p>
+                <p className="text-xs text-muted-foreground mb-4">{item.bidCount} bids</p>
 
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Set Your Max Bid</p>
                 <div className="flex gap-2 mb-3">
@@ -132,11 +167,15 @@ const ItemDetailPage = () => {
                   ))}
                 </select>
 
-                <button className="w-full h-11 rounded-md bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors mb-3">
-                  PLACE BID
+                <button
+                  onClick={handlePlaceBid}
+                  disabled={isPlacingBid}
+                  className="w-full h-11 rounded-md bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors mb-3 disabled:opacity-50"
+                >
+                  {isPlacingBid ? "PLACING BID..." : "PLACE BID"}
                 </button>
                 <p className="text-xs text-center text-muted-foreground">
-                  Get approved to bid. <button className="text-primary hover:underline">Register for Auction</button>
+                  Get approved to bid. <Link to="/profile" className="text-primary hover:underline">Register for Auction</Link>
                 </p>
               </div>
 
@@ -171,10 +210,11 @@ const ItemDetailPage = () => {
               </button>
             ))}
           </div>
-          <div className="max-w-3xl text-sm text-foreground leading-relaxed">
-            {activeTab === "description" && <p>{item.description}</p>}
-            {activeTab === "shipping" && <p>{item.shippingInfo}</p>}
-            {activeTab === "condition" && <p>{item.conditionReport}</p>}
+          <div className="max-w-3xl">
+            {activeTab === "description" && <p className="text-sm text-foreground leading-relaxed">{item.description}</p>}
+            {activeTab === "shipping" && <p className="text-sm text-foreground leading-relaxed">{item.shippingInfo}</p>}
+            {activeTab === "condition" && <p className="text-sm text-foreground leading-relaxed">{item.conditionReport}</p>}
+            {activeTab === "bids" && <BidHistory auctionId={item.id} currency={item.currency} />}
           </div>
         </div>
 
@@ -193,3 +233,4 @@ const ItemDetailPage = () => {
 };
 
 export default ItemDetailPage;
+
