@@ -225,18 +225,7 @@ const CreateAuctionPage = () => {
                             </div>
                         </div>
 
-                        {/* Images — Coming Soon */}
-                        <div className="rounded-lg border border-dashed border-input p-4 bg-muted/30">
-                            <div className="flex items-start gap-3">
-                                <Info className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                                <div>
-                                    <p className="text-sm font-medium text-foreground">Image Upload Coming Soon</p>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        Image upload is currently being developed. Your auction will be created with a default placeholder image.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+
 
                         {/* Price & Duration */}
                         <div className="grid grid-cols-2 gap-4">
