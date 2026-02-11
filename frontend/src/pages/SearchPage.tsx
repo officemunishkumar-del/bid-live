@@ -73,10 +73,10 @@ const SearchPage = () => {
             onChange={(e) => setSortBy(e.target.value)}
             className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           >
-            <option value="relevant">Most Relevant</option>
-            <option value="ending">Ending Soon</option>
-            <option value="price-low">Price: Low to High</option>
-            <option value="price-high">Price: High to Low</option>
+            <option value="relevant">Recommended</option>
+            <option value="ending">Last Call 🔥</option>
+            <option value="price-low">Best Value</option>
+            <option value="price-high">Premium Selection</option>
           </select>
         </div>
       </div>

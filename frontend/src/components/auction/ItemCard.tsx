@@ -19,6 +19,15 @@ const ItemCard = ({ item }: ItemCardProps) => {
             </span>
           )}
 
+          {/* Sold/Unsold Ribbon */}
+          {new Date(item.endTime).getTime() <= Date.now() && (
+            <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden text-[#f1f1f1]">
+              <div className={`absolute bottom-0 left-0 w-[141%] h-8 flex items-center justify-center font-bold text-sm tracking-widest uppercase origin-bottom-left -rotate-45 translate-y-[20%] -translate-x-[20%] shadow-lg ${item.bidCount > 0 ? "bg-success" : "bg-urgency"}`}>
+                {item.bidCount > 0 ? "SOLD" : "UNSOLD"}
+              </div>
+            </div>
+          )}
+
           <img
             src={item.images[0]}
             alt={item.title}

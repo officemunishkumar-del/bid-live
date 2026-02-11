@@ -28,7 +28,7 @@ export const getTimeRemaining = (endTime: string) => {
         label = `${hours} Hrs ${minutes} Min ${seconds} Sec`;
         urgency = "warning";
     } else {
-        label = `${minutes} Min ${seconds} Sec`;
+        label = minutes > 0 ? `${minutes} Min ${seconds} Sec` : `${seconds} Sec`;
         urgency = "urgent";
     }
 

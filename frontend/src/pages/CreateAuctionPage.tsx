@@ -64,7 +64,8 @@ const CreateAuctionPage = () => {
         description: "",
         category: "",
         startingPrice: "",
-        duration: 24,
+        durationValue: 24,
+        durationUnit: "hours" as "minutes" | "hours" | "days" | "seconds",
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<FormErrors>({});
@@ -72,7 +73,8 @@ const CreateAuctionPage = () => {
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        const processedValue = name === "durationValue" ? parseInt(value, 10) || 0 : value;
+        setFormData(prev => ({ ...prev, [name]: processedValue }));
         // Clear error on change
         if (errors[name as keyof FormErrors]) {
             setErrors(prev => ({ ...prev, [name]: undefined }));
@@ -108,7 +110,15 @@ const CreateAuctionPage = () => {
         try {
             // Calculate endsAt from duration
             const endsAt = new Date();
-            endsAt.setHours(endsAt.getHours() + formData.duration);
+            if (formData.durationUnit === "seconds") {
+                endsAt.setSeconds(endsAt.getSeconds() + formData.durationValue);
+            } else if (formData.durationUnit === "minutes") {
+                endsAt.setMinutes(endsAt.getMinutes() + formData.durationValue);
+            } else if (formData.durationUnit === "hours") {
+                endsAt.setHours(endsAt.getHours() + formData.durationValue);
+            } else if (formData.durationUnit === "days") {
+                endsAt.setDate(endsAt.getDate() + formData.durationValue);
+            }
 
             await createAuction({
                 title: formData.title,
@@ -135,7 +145,15 @@ const CreateAuctionPage = () => {
     };
 
     const endTime = new Date();
-    endTime.setHours(endTime.getHours() + formData.duration);
+    if (formData.durationUnit === "seconds") {
+        endTime.setSeconds(endTime.getSeconds() + formData.durationValue);
+    } else if (formData.durationUnit === "minutes") {
+        endTime.setMinutes(endTime.getMinutes() + formData.durationValue);
+    } else if (formData.durationUnit === "hours") {
+        endTime.setHours(endTime.getHours() + formData.durationValue);
+    } else if (formData.durationUnit === "days") {
+        endTime.setDate(endTime.getDate() + formData.durationValue);
+    }
 
     const renderFieldError = (field: keyof FormErrors) => {
         if (!touched[field] || !errors[field]) return null;
@@ -225,10 +243,8 @@ const CreateAuctionPage = () => {
                             </div>
                         </div>
 
-
-
                         {/* Price & Duration */}
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-medium text-foreground mb-2">
                                     Starting Price <span className="text-urgency">*</span>
@@ -249,21 +265,33 @@ const CreateAuctionPage = () => {
                                 </div>
                                 {renderFieldError("startingPrice")}
                             </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-foreground mb-2">
                                     Duration
                                 </label>
-                                <div className="relative">
-                                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <input
+                                            type="number"
+                                            name="durationValue"
+                                            value={formData.durationValue}
+                                            onChange={handleInputChange}
+                                            min="1"
+                                            className="w-full h-11 pl-9 pr-4 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                                        />
+                                    </div>
                                     <select
-                                        name="duration"
-                                        value={formData.duration}
+                                        name="durationUnit"
+                                        value={formData.durationUnit}
                                         onChange={handleInputChange}
-                                        className="w-full h-11 pl-9 pr-4 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring appearance-none"
+                                        className="h-11 px-3 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                     >
-                                        {durationOptions.map(opt => (
-                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                        ))}
+                                        <option value="seconds">Seconds</option>
+                                        <option value="minutes">Minutes</option>
+                                        <option value="hours">Hours</option>
+                                        <option value="days">Days</option>
                                     </select>
                                 </div>
                             </div>
@@ -294,15 +322,18 @@ const CreateAuctionPage = () => {
                                 </div>
                             </div>
 
-                            {/* Auction Details */}
                             <div className="space-y-2 text-sm">
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground">Ends At</span>
-                                    <span className="text-foreground">{endTime.toLocaleString()}</span>
+                                    <span className="text-foreground tracking-tight">
+                                        {endTime.toLocaleDateString("en-GB")} {endTime.toLocaleTimeString("en-GB")}
+                                    </span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground">Duration</span>
-                                    <span className="text-foreground">{durationOptions.find(d => d.value === formData.duration)?.label}</span>
+                                    <span className="text-foreground text-right capitalize">
+                                        {formData.durationValue} {formData.durationValue === 1 ? formData.durationUnit.slice(0, -1) : formData.durationUnit}
+                                    </span>
                                 </div>
                             </div>
 

@@ -1,26 +1,16 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Search, User, Menu, X, Plus, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 
 const Header = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
-
-  // Listen for login trigger from ProtectedRoutes
-  useEffect(() => {
-    if (location.state?.openAuth && !isAuthenticated) {
-      setShowAuthModal(true);
-      // Clean up state so it doesn't reopen on refresh
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state, isAuthenticated]);
 
   const handleLogout = () => {
     logout();

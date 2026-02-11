@@ -281,8 +281,8 @@ const ItemDetailPage = () => {
         </div>
       )}
 
-      {/* Sub-header */}
-      <div className="border-b border-border bg-secondary">
+      {/* Sub-header - Sticky below main Header */}
+      <div className="sticky top-16 z-40 border-b border-border bg-secondary shadow-sm">
         <div className="container mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-sm">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Link to="/search" className="hover:text-foreground flex items-center gap-1"><ChevronLeft className="h-3 w-3" /> Back</Link>
@@ -321,7 +321,7 @@ const ItemDetailPage = () => {
           </div>
 
           <div className="lg:col-span-1">
-            <div className="border border-border rounded-lg p-5 sticky top-4">
+            <div className="border border-border rounded-lg p-5 sticky top-[110px]">
               <div className="flex justify-between items-start mb-3">
                 <h1 className="text-lg font-serif font-bold text-foreground leading-snug">{item.title}</h1>
 
@@ -330,9 +330,6 @@ const ItemDetailPage = () => {
               <p className="text-sm text-muted-foreground mb-1">
                 Est. {formatCurrency(item.estimateLow)}-{formatCurrency(item.estimateHigh)}
               </p>
-              <div className="mb-4">
-                <CountdownTimer endTime={item.endTime} showLabel={false} className="text-sm" />
-              </div>
 
               {isAuthenticated && (
                 <div className="bg-secondary rounded-md p-3 mb-4">
@@ -360,8 +357,8 @@ const ItemDetailPage = () => {
                       {bidOptions.map((amt, i) => (
                         <button
                           key={i}
-                          onClick={() => { setSelectedBid(i); setCustomBidAmount(amt.toString()); }}
-                          className={`flex-1 h-9 rounded-md border text-sm font-medium transition-colors ${selectedBid === i ? "border-primary bg-primary/5 text-primary" : "border-input hover:bg-muted"}`}
+                          onClick={() => { setSelectedBid(i); setCustomBidAmount(""); }}
+                          className={`flex-1 h-9 rounded-md border text-sm font-medium transition-colors ${selectedBid === i && !isCustomMode ? "border-primary bg-primary/5 text-primary" : "border-input hover:bg-muted"}`}
                         >
                           {formatCurrency(amt)}
                         </button>

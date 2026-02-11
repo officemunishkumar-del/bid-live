@@ -1,12 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { User as UserIcon, Wallet, Trophy, Gavel, Clock, ChevronRight, Settings, LogOut, Loader2 } from "lucide-react";
+import { User as UserIcon, Wallet, Trophy, Gavel, Clock, ChevronRight, LogOut, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/utils/formatters";
 import ItemCard from "@/components/auction/ItemCard";
 import { useAuth } from "@/contexts/AuthContext";
 
 const ProfilePage = () => {
     const { user, logout, isAuthenticated, refreshUser, isLoading } = useAuth();
+    const [showWon, setShowWon] = useState(false);
+    const [showYour, setShowYour] = useState(false);
+    const [showWatching, setShowWatching] = useState(false);
+    const [showFollowing, setShowFollowing] = useState(false);
 
     // Refresh user data on mount to get full profile with auctions
     useEffect(() => {
@@ -69,9 +73,6 @@ const ProfilePage = () => {
                                 Member since {new Date(user.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
                             </p>
                         </div>
-                        <button className="h-9 px-4 rounded-md border border-input text-sm font-medium flex items-center gap-2 hover:bg-muted transition-colors">
-                            <Settings className="h-4 w-4" /> Settings
-                        </button>
                     </div>
                 </div>
 
@@ -100,79 +101,122 @@ const ProfilePage = () => {
             {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
                 {[
-                    { icon: Trophy, label: "Won Auctions", value: wonItems.length },
-                    { icon: Gavel, label: "Your Auctions", value: createdItems.length },
-                    { icon: Clock, label: "Watching", value: 0 },
-                    { icon: UserIcon, label: "Following", value: 0 },
-                ].map(({ icon: Icon, label, value }) => (
-                    <div key={label} className="bg-card border border-border rounded-lg p-4 text-center">
-                        <Icon className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+                    { icon: Trophy, label: "Won Auctions", value: wonItems.length, targetId: "won-auctions" },
+                    { icon: Gavel, label: "Your Auctions", value: createdItems.length, targetId: "your-auctions" },
+                    { icon: Clock, label: "Watching", value: 0, targetId: "watching-auctions" },
+                    { icon: UserIcon, label: "Following", value: 0, targetId: "following-list" },
+                ].map(({ icon: Icon, label, value, targetId }) => (
+                    <button
+                        key={label}
+                        onClick={() => {
+                            if (targetId === "won-auctions") setShowWon(true);
+                            if (targetId === "your-auctions") setShowYour(true);
+                            if (targetId === "watching-auctions") setShowWatching(true);
+                            if (targetId === "following-list") setShowFollowing(true);
+
+                            setTimeout(() => {
+                                document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth' });
+                            }, 100);
+                        }}
+                        className="bg-card border border-border rounded-lg p-4 text-center hover:bg-muted/50 hover:border-primary/30 transition-all cursor-pointer group"
+                    >
+                        <Icon className="h-6 w-6 mx-auto text-muted-foreground mb-2 group-hover:text-primary transition-colors" />
                         <span className="block text-2xl font-bold text-foreground">{value}</span>
                         <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">{label}</span>
-                    </div>
+                    </button>
                 ))}
             </div>
 
             {/* Won Auctions */}
-            <section className="mb-10">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
-                        <Trophy className="h-5 w-5 text-warning" /> Won Auctions
-                    </h2>
-                </div>
-                {wonItems.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {wonItems.map(item => (
-                            <ItemCard key={item.id} item={item} />
-                        ))}
+            {showWon && (
+                <section id="won-auctions" className="mb-10 scroll-mt-20 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
+                            <Trophy className="h-5 w-5 text-warning" /> Won Auctions
+                        </h2>
                     </div>
-                ) : (
-                    <div className="bg-secondary rounded-lg p-8 text-center border border-dashed border-border">
-                        <Trophy className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                        <p className="text-muted-foreground">No auctions won yet</p>
-                        <Link to="/search" className="text-primary text-sm font-medium hover:underline mt-2 inline-block">
-                            Start bidding →
-                        </Link>
-                    </div>
-                )}
-            </section>
+                    {wonItems.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {wonItems.map(item => (
+                                <ItemCard key={item.id} item={item} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="bg-secondary rounded-lg p-8 text-center border border-dashed border-border">
+                            <Trophy className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                            <p className="text-muted-foreground">No auctions won yet</p>
+                            <Link to="/search" className="text-primary text-sm font-medium hover:underline mt-2 inline-block">
+                                Start bidding →
+                            </Link>
+                        </div>
+                    )}
+                </section>
+            )}
 
             {/* Your Auctions */}
-            <section className="mb-10">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
-                        <Gavel className="h-5 w-5 text-primary" /> Your Auctions
-                    </h2>
-                </div>
-                {createdItems.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {createdItems.map(item => (
-                            <ItemCard key={item.id} item={item} />
-                        ))}
+            {showYour && (
+                <section id="your-auctions" className="mb-10 scroll-mt-20 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
+                            <Gavel className="h-5 w-5 text-primary" /> Your Auctions
+                        </h2>
                     </div>
-                ) : (
+                    {createdItems.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {createdItems.map(item => (
+                                <ItemCard key={item.id} item={item} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="bg-secondary rounded-lg p-8 text-center border border-dashed border-border">
+                            <Gavel className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                            <p className="text-muted-foreground">You haven't created any auctions yet</p>
+                            <Link to="/search" className="text-primary text-sm font-medium hover:underline mt-2 inline-block">
+                                List an item →
+                            </Link>
+                        </div>
+                    )}
+                </section>
+            )}
+
+            {/* Watching */}
+            {showWatching && (
+                <section id="watching-auctions" className="mb-10 scroll-mt-20 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
+                            <Clock className="h-5 w-5 text-primary" /> Watching
+                        </h2>
+                    </div>
                     <div className="bg-secondary rounded-lg p-8 text-center border border-dashed border-border">
-                        <Gavel className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                        <p className="text-muted-foreground">You haven't created any auctions yet</p>
+                        <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                        <p className="text-muted-foreground">You aren't watching any auctions yet</p>
                         <Link to="/search" className="text-primary text-sm font-medium hover:underline mt-2 inline-block">
-                            List an item →
+                            Browse auctions →
                         </Link>
                     </div>
-                )}
-            </section>
+                </section>
+            )}
+
+            {/* Following */}
+            {showFollowing && (
+                <section id="following-list" className="mb-10 scroll-mt-20 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
+                            <UserIcon className="h-5 w-5 text-primary" /> Following
+                        </h2>
+                    </div>
+                    <div className="bg-secondary rounded-lg p-8 text-center border border-dashed border-border">
+                        <UserIcon className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                        <p className="text-muted-foreground">You aren't following any auctioneers yet</p>
+                        <Link to="/search" className="text-primary text-sm font-medium hover:underline mt-2 inline-block">
+                            Find curators →
+                        </Link>
+                    </div>
+                </section>
+            )}
 
             {/* Account Quick Links */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button className="bg-card border border-border rounded-lg p-4 flex items-center justify-between hover:bg-muted transition-colors text-left">
-                    <div className="flex items-center gap-3">
-                        <Settings className="h-6 w-6 text-muted-foreground" />
-                        <div>
-                            <span className="block font-medium text-foreground">Account Settings</span>
-                            <span className="text-xs text-muted-foreground">Manage your personal information</span>
-                        </div>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </button>
+            <div className="grid grid-cols-1 gap-4">
                 <button
                     onClick={() => logout()}
                     className="bg-card border border-border rounded-lg p-4 flex items-center justify-between hover:bg-muted transition-colors text-left"
