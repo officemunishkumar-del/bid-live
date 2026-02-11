@@ -75,7 +75,7 @@ class SocketService {
             // Determine socket URL based on environment
             const socketUrl = window.location.hostname === 'localhost'
                 ? 'http://localhost:3000'
-                : window.location.origin;
+                : 'https://subvirile-anglea-unreprovable.ngrok-free.dev';
 
             this.maxReconnectReached = false;
 

@@ -4,8 +4,8 @@
  * Includes request timeout, auth headers, JWT expiry check, and auto-logout on 401.
  */
 
-// API base URL - using proxy in vite.config.ts
-export const API_BASE_URL = "/api";
+// API base URL - using ngrok for remote connection
+export const API_BASE_URL = "https://subvirile-anglea-unreprovable.ngrok-free.dev/api";
 
 // Token storage key
 const TOKEN_KEY = "livebid_token";
