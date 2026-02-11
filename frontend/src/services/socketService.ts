@@ -56,12 +56,15 @@ class SocketService {
     private socket: Socket | null = null;
     private eventListeners: Map<string, Set<EventCallback>> = new Map();
     private subscribedAuctions: Set<string> = new Set();
+    private maxReconnectReached = false;
 
     /**
-     * Connect to the WebSocket server
+     * Connect to the WebSocket server.
+     * Resolves when connected. Does NOT reject on connect_error —
+     * instead lets Socket.IO's built-in reconnection handle transient failures.
      */
     connect(): Promise<void> {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             if (this.socket?.connected) {
                 resolve();
                 return;
@@ -74,17 +77,20 @@ class SocketService {
                 ? 'http://localhost:3000'
                 : window.location.origin;
 
+            this.maxReconnectReached = false;
+
             this.socket = io(socketUrl, {
                 auth: { token },
                 transports: ["websocket", "polling"],
                 reconnection: true,
-                reconnectionAttempts: 5,
+                reconnectionAttempts: 10,
                 reconnectionDelay: 1000,
                 reconnectionDelayMax: 15000,
             });
 
             this.socket.on("connect", () => {
                 console.log("[Socket] Connected");
+                this.maxReconnectReached = false;
                 this.emitLocal("CONNECTION_STATE", { connected: true, reconnecting: false });
 
                 // Re-join rooms after reconnect
@@ -107,7 +113,18 @@ class SocketService {
                     reconnecting: true,
                     error: error.message,
                 });
-                reject(error);
+                // Don't reject — let reconnection logic handle it
+            });
+
+            // Fired when all reconnection attempts are exhausted
+            this.socket.io.on("reconnect_failed", () => {
+                console.error("[Socket] All reconnection attempts exhausted");
+                this.maxReconnectReached = true;
+                this.emitLocal("CONNECTION_STATE", {
+                    connected: false,
+                    reconnecting: false,
+                    error: "Unable to connect. Please check your connection and try again.",
+                });
             });
 
             // Listen for server events and forward to local listeners
@@ -132,8 +149,26 @@ class SocketService {
         this.subscribedAuctions.clear();
         this.socket?.disconnect();
         this.socket = null;
+        this.maxReconnectReached = false;
         this.emitLocal("CONNECTION_STATE", { connected: false, reconnecting: false });
         console.log("[Socket] Disconnected");
+    }
+
+    /**
+     * Manual reconnect — useful after max reconnection attempts exhausted
+     */
+    reconnect(): void {
+        this.disconnect();
+        this.connect().catch((err) =>
+            console.error("[Socket] Manual reconnect failed:", err)
+        );
+    }
+
+    /**
+     * Check if reconnection attempts have been exhausted
+     */
+    isMaxReconnectReached(): boolean {
+        return this.maxReconnectReached;
     }
 
     /**
@@ -146,7 +181,7 @@ class SocketService {
         } else {
             // Auto-connect if not connected
             this.connect().catch((err) =>
-                console.error("[Socket] Auto-connect failed:", err.message)
+                console.error("[Socket] Auto-connect failed:", err)
             );
         }
     }

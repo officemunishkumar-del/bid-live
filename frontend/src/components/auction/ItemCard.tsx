@@ -1,20 +1,15 @@
 import { Link } from "react-router-dom";
 import { Star } from "lucide-react";
 import { AuctionItem } from "@/types/auction";
-import { formatCurrency, getTimeRemaining } from "@/utils/formatters";
+import { formatCurrency } from "@/utils/formatters";
 import SaveButton from "./SaveButton";
+import CountdownTimer from "./CountdownTimer";
 
 interface ItemCardProps {
   item: AuctionItem;
 }
 
 const ItemCard = ({ item }: ItemCardProps) => {
-  const time = getTimeRemaining(item.endTime);
-  const colorClass =
-    time.urgency === "urgent" ? "text-urgency" :
-      time.urgency === "warning" ? "text-warning" :
-        "text-urgency";
-
   return (
     <Link to={`/item/${item.id}`} className="group block">
       <div className="hover-lift rounded-lg border border-border bg-card overflow-hidden">
@@ -38,7 +33,7 @@ const ItemCard = ({ item }: ItemCardProps) => {
           />
         </div>
         <div className="p-3 space-y-1.5">
-          <p className={`text-xs font-medium ${colorClass}`}>{time.label}</p>
+          <CountdownTimer endTime={item.endTime} className="text-xs font-medium" showLabel={false} />
           <h3 className="text-sm font-semibold text-card-foreground line-clamp-2 font-sans leading-tight">
             {item.title}
           </h3>

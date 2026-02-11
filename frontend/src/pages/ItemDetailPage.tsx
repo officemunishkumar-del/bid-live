@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Lock, Star, AlertTriangle, Wifi, WifiOff, Loader2, Search, Home } from "lucide-react";
-import { AuctionItem as UIAuctionItem } from "@/types/auction";
+import { ChevronLeft, Lock, Star, Wifi, WifiOff, Loader2, Search, Home, RefreshCw } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency, getTimeRemaining } from "@/utils/formatters";
 import CountdownTimer from "@/components/auction/CountdownTimer";
 import SaveButton from "@/components/auction/SaveButton";
-import ItemCard from "@/components/auction/ItemCard";
 import BidHistory from "@/components/auction/BidHistory";
 import ViewerCount from "@/components/auction/ViewerCount";
 import StatusBadge from "@/components/auction/StatusBadge";
@@ -20,50 +19,62 @@ const ItemDetailPage = () => {
   const { id } = useParams();
   const { toast } = useToast();
   const { user, isAuthenticated, refreshUser } = useAuth();
+  const queryClient = useQueryClient();
 
-  const [item, setItem] = useState<UIAuctionItem | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [mainImgIdx, setMainImgIdx] = useState(0);
   const [activeTab, setActiveTab] = useState<"description" | "bids">("description");
   const [selectedBid, setSelectedBid] = useState<number | null>(0);
   const [customBidAmount, setCustomBidAmount] = useState("");
-  const [isPlacingBid, setIsPlacingBid] = useState(false);
   const [currentBid, setCurrentBid] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [auctionStatus, setAuctionStatus] = useState<"active" | "expired" | "sold">("active");
 
-  // Load item data from backend
+  // Fetch auction data via React Query
+  const { data: item, isLoading, error } = useQuery({
+    queryKey: ["auction", id],
+    queryFn: () => getAuctionById(id!),
+    enabled: !!id,
+    staleTime: 15_000,
+  });
+
+  // Set initial state when item loads
   useEffect(() => {
-    const loadItem = async () => {
-      if (!id) return;
-      setIsLoading(true);
-      try {
-        const data = await getAuctionById(id);
-        if (data) {
-          setItem(data);
-          setCurrentBid(data.currentBid);
-          // Determine status from mapped data and time
-          const timeDetails = getTimeRemaining(data.endTime);
-          if (timeDetails.total <= 0) {
-            setAuctionStatus(data.status === "sold" ? "sold" : "expired");
-          } else {
-            setAuctionStatus(data.status || "active");
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load auction:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load auction details.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
+    if (item) {
+      setCurrentBid(item.currentBid);
+      const timeDetails = getTimeRemaining(item.endTime);
+      if (timeDetails.total <= 0) {
+        setAuctionStatus(item.status === "sold" ? "sold" : "expired");
+      } else {
+        setAuctionStatus(item.status || "active");
       }
-    };
-    loadItem();
-  }, [id, toast]);
+    }
+  }, [item]);
+
+  // Bid mutation with cache invalidation and balance refresh
+  const bidMutation = useMutation({
+    mutationFn: (amount: number) =>
+      placeBid({ auctionId: item!.id, amount }),
+    onSuccess: async (_result, amount) => {
+      setCurrentBid(amount);
+      // Invalidate auction cache so next visit gets fresh data
+      queryClient.invalidateQueries({ queryKey: ["auction", id] });
+      queryClient.invalidateQueries({ queryKey: ["auctions"] });
+      // Refresh user balance
+      await refreshUser();
+      toast({
+        title: "Bid Successful!",
+        description: `Your bid of ${formatCurrency(amount)} has been placed.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Bid Failed",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Check auction status periodically
   useEffect(() => {
@@ -86,7 +97,6 @@ const ItemDetailPage = () => {
       setIsReconnecting(state.reconnecting);
 
       if (state.connected && !state.reconnecting && id) {
-        // Just reconnected, join the room again
         socketService.joinAuction(id);
       }
     };
@@ -161,14 +171,18 @@ const ItemDetailPage = () => {
     );
   }
 
-  if (!item) {
+  if (error || !item) {
     return (
       <div className="container mx-auto px-4 py-20 text-center max-w-md">
         <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
           <Search className="h-10 w-10 text-muted-foreground" />
         </div>
-        <h1 className="text-2xl font-serif font-bold mb-2 text-foreground">Item Not Found</h1>
-        <p className="text-muted-foreground mb-6">This auction may have been removed or the link may be incorrect.</p>
+        <h1 className="text-2xl font-serif font-bold mb-2 text-foreground">
+          {error ? "Failed to Load" : "Item Not Found"}
+        </h1>
+        <p className="text-muted-foreground mb-6">
+          {error instanceof Error ? error.message : "This auction may have been removed or the link may be incorrect."}
+        </p>
         <div className="flex gap-3 justify-center">
           <Link to="/" className="h-10 px-5 rounded-md bg-primary text-primary-foreground font-semibold text-sm flex items-center gap-2 hover:bg-primary/90 transition-colors">
             <Home className="h-4 w-4" /> Home
@@ -194,15 +208,17 @@ const ItemDetailPage = () => {
       : minNextBid;
 
   const isCustomTooLow = isCustomMode && parsedCustom < minNextBid;
+  const isCustomNotNumber = customBidAmount !== "" && (isNaN(parsedCustom) || parsedCustom <= 0);
   const userBalance = user?.balance || 0;
   const hasInsufficientBalance = isAuthenticated && userBalance < selectedBidAmount;
 
   const isBiddingDisabled =
-    isPlacingBid ||
+    bidMutation.isPending ||
     !isOnline ||
     auctionStatus !== "active" ||
     hasInsufficientBalance ||
     isCustomTooLow ||
+    isCustomNotNumber ||
     !isAuthenticated;
 
   const handlePlaceBid = async () => {
@@ -215,35 +231,23 @@ const ItemDetailPage = () => {
       return;
     }
 
-    setIsPlacingBid(true);
-
-    try {
-      const result = await placeBid({
-        auctionId: item.id,
-        amount: selectedBidAmount,
-      });
-
-      if (result.success) {
-        setCurrentBid(selectedBidAmount);
-        await refreshUser();
-        toast({
-          title: "Bid Successful!",
-          description: result.message,
-        });
-      }
-    } catch (error: any) {
+    // Refresh balance before placing bid to get latest state
+    await refreshUser();
+    const latestBalance = user?.balance || 0;
+    if (latestBalance < selectedBidAmount) {
       toast({
-        title: "Bid Failed",
-        description: error.message || "An unexpected error occurred",
+        title: "Insufficient Funds",
+        description: `Your current balance is ${formatCurrency(latestBalance)}. You need at least ${formatCurrency(selectedBidAmount)} to place this bid.`,
         variant: "destructive",
       });
-    } finally {
-      setIsPlacingBid(false);
+      return;
     }
+
+    bidMutation.mutate(selectedBidAmount);
   };
 
   const getButtonText = () => {
-    if (isPlacingBid) return "PLACING BID...";
+    if (bidMutation.isPending) return "PLACING BID...";
     if (!isAuthenticated) return "LOGIN TO BID";
     if (!isOnline) return "OFFLINE";
     if (auctionStatus === "expired") return "AUCTION ENDED";
@@ -261,7 +265,18 @@ const ItemDetailPage = () => {
             {isReconnecting ? (
               <><Wifi className="h-4 w-4 animate-pulse" /><span>Reconnecting...</span></>
             ) : (
-              <><WifiOff className="h-4 w-4" /><span>You are offline. Please check your connection.</span></>
+              <>
+                <WifiOff className="h-4 w-4" />
+                <span>You are offline.</span>
+                {socketService.isMaxReconnectReached() && (
+                  <button
+                    onClick={() => socketService.reconnect()}
+                    className="underline font-medium ml-1 flex items-center gap-1"
+                  >
+                    <RefreshCw className="h-3 w-3" /> Retry
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -364,12 +379,15 @@ const ItemDetailPage = () => {
                             onChange={(e) => { setCustomBidAmount(e.target.value); setSelectedBid(null); }}
                             min={minNextBid}
                             step={1}
-                            className={`w-full h-9 rounded-md border pl-7 pr-3 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 ${isCustomMode ? "border-primary bg-primary/5 text-primary" : "border-input"} ${isCustomTooLow ? "border-urgency text-urgency" : ""}`}
+                            className={`w-full h-9 rounded-md border pl-7 pr-3 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 ${isCustomMode ? "border-primary bg-primary/5 text-primary" : "border-input"} ${isCustomTooLow || isCustomNotNumber ? "border-urgency text-urgency" : ""}`}
                           />
                         </div>
                       </div>
                       {isCustomTooLow && (
                         <p className="text-xs text-urgency mt-1">Minimum bid is {formatCurrency(minNextBid)}</p>
+                      )}
+                      {isCustomNotNumber && !isCustomTooLow && (
+                        <p className="text-xs text-urgency mt-1">Please enter a valid positive number</p>
                       )}
                     </div>
 
@@ -378,7 +396,7 @@ const ItemDetailPage = () => {
                       disabled={isBiddingDisabled}
                       className="w-full h-11 rounded-md bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors mb-3 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      {isPlacingBid && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {bidMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                       {getButtonText()}
                     </button>
                   </>
@@ -395,10 +413,10 @@ const ItemDetailPage = () => {
 
         <div className="mt-10 border-t border-border pt-6">
           <div className="flex gap-6 border-b border-border mb-6">
-            {["description", "bids"].map((tab) => (
+            {(["description", "bids"] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab as any)}
+                onClick={() => setActiveTab(tab)}
                 className={`pb-3 text-sm font-medium capitalize border-b-2 -mb-px ${activeTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}
               >
                 {tab}

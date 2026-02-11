@@ -35,12 +35,47 @@ const validate = (view: ModalView, formData: { name: string; email: string; pass
   if (view !== "forgot") {
     if (!formData.password) {
       errors.password = "Password is required";
-    } else if (formData.password.length < 6) {
-      errors.password = "Password must be at least 6 characters";
+    } else if (formData.password.length < 8) {
+      errors.password = "Password must be at least 8 characters";
+    } else if (view === "register") {
+      if (!/[A-Z]/.test(formData.password)) {
+        errors.password = "Must contain at least one uppercase letter";
+      } else if (!/[0-9]/.test(formData.password)) {
+        errors.password = "Must contain at least one number";
+      } else if (!/[!@#$%^&*(),.?\":{}|<>]/.test(formData.password)) {
+        errors.password = "Must contain at least one special character";
+      }
     }
   }
 
   return errors;
+};
+
+const getPasswordStrength = (password: string): { score: number; label: string; color: string } => {
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[!@#$%^&*(),.?\":{}|<>]/.test(password)) score++;
+
+  if (score <= 1) return { score, label: "Weak", color: "bg-urgency" };
+  if (score === 2) return { score, label: "Fair", color: "bg-warning" };
+  if (score === 3) return { score, label: "Good", color: "bg-primary" };
+  return { score, label: "Strong", color: "bg-success" };
+};
+
+const PasswordStrengthMeter = ({ password }: { password: string }) => {
+  const { score, label, color } = getPasswordStrength(password);
+  return (
+    <div className="mt-2">
+      <div className="flex gap-1 mb-1">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i <= score ? color : "bg-border"}`} />
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">Password strength: <span className="font-medium">{label}</span></p>
+    </div>
+  );
 };
 
 const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
@@ -281,6 +316,9 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
                       </button>
                     </div>
                     {renderFieldError("password")}
+                    {isRegister && formData.password.length > 0 && !errors.password && (
+                      <PasswordStrengthMeter password={formData.password} />
+                    )}
                   </div>
                   <button
                     type="submit"
@@ -301,20 +339,7 @@ const AuthModal = ({ open, onOpenChange }: AuthModalProps) => {
                   </button>
                 )}
 
-                <div className="flex items-center gap-3 my-5">
-                  <div className="flex-1 h-px bg-border" />
-                  <span className="text-xs text-muted-foreground">OR</span>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
 
-                <div className="space-y-2">
-                  <button className="w-full h-10 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted transition-colors flex items-center justify-center gap-2">
-                    <span>G</span> Continue with Google
-                  </button>
-                  <button className="w-full h-10 rounded-md border border-input bg-background text-sm font-medium hover:bg-muted transition-colors flex items-center justify-center gap-2">
-                    <span></span> Continue with Apple
-                  </button>
-                </div>
 
                 <p className="text-xs text-muted-foreground mt-5 text-center">
                   {isLogin ? "Don't have an account? " : "Already have an account? "}

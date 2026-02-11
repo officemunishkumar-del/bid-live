@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { User, login as authLogin, register as authRegister, logout as authLogout, getCurrentUser } from "@/services/authService";
-import { getToken } from "@/services/api";
+import { getToken, isTokenExpired } from "@/services/api";
 
 interface AuthContextType {
     user: User | null;
@@ -22,7 +22,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         const checkAuth = async () => {
             const token = getToken();
-            if (token) {
+            if (token && !isTokenExpired(token)) {
                 try {
                     const currentUser = await getCurrentUser();
                     setUser(currentUser);
@@ -30,6 +30,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     // Token invalid, clear it
                     authLogout();
                 }
+            } else if (token) {
+                // Token exists but expired — clean up
+                authLogout();
             }
             setIsLoading(false);
         };
@@ -44,6 +47,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         window.addEventListener("auth:logout", handleForceLogout);
         return () => window.removeEventListener("auth:logout", handleForceLogout);
     }, []);
+
+    // Multi-tab sync: listen for localStorage changes from other tabs
+    useEffect(() => {
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === "livebid_token") {
+                if (!e.newValue) {
+                    // Token removed in another tab → logout here too
+                    setUser(null);
+                } else if (e.newValue && !user) {
+                    // Token set in another tab → refresh user
+                    getCurrentUser().then(setUser).catch(() => setUser(null));
+                }
+            }
+        };
+        window.addEventListener("storage", handleStorageChange);
+        return () => window.removeEventListener("storage", handleStorageChange);
+    }, [user]);
 
     const login = async (email: string, password: string) => {
         const response = await authLogin({ email, password });

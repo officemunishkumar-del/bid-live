@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Upload, Clock, DollarSign, Image, X, ChevronRight, AlertCircle } from "lucide-react";
+import { Clock, DollarSign, Image, ChevronRight, AlertCircle, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { createAuction } from "@/services/auctionService";
 
@@ -66,7 +66,6 @@ const CreateAuctionPage = () => {
         startingPrice: "",
         duration: 24,
     });
-    const [images, setImages] = useState<string[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<FormErrors>({});
     const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -86,21 +85,6 @@ const CreateAuctionPage = () => {
         if (fieldErrors[fieldName as keyof FormErrors]) {
             setErrors(prev => ({ ...prev, [fieldName]: fieldErrors[fieldName as keyof FormErrors] }));
         }
-    };
-
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
-        if (files) {
-            // Mock image upload - just use placeholder URLs
-            const newImages = Array.from(files).map((_, i) =>
-                `https://images.unsplash.com/photo-${Date.now() + i}?w=400`
-            );
-            setImages(prev => [...prev, ...newImages].slice(0, 5));
-        }
-    };
-
-    const removeImage = (index: number) => {
-        setImages(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -139,10 +123,10 @@ const CreateAuctionPage = () => {
             });
 
             navigate("/search");
-        } catch (error: any) {
+        } catch (error) {
             toast({
                 title: "Error",
-                description: error.message || "Failed to create auction",
+                description: error instanceof Error ? error.message : "Failed to create auction",
                 variant: "destructive",
             });
         } finally {
@@ -241,41 +225,17 @@ const CreateAuctionPage = () => {
                             </div>
                         </div>
 
-                        {/* Images */}
-                        <div>
-                            <label className="block text-sm font-medium text-foreground mb-2">
-                                Images (up to 5)
-                            </label>
-                            <div className="grid grid-cols-5 gap-3">
-                                {images.map((img, i) => (
-                                    <div key={i} className="relative aspect-square rounded-md overflow-hidden bg-muted">
-                                        <img src={img} alt="" className="w-full h-full object-cover" />
-                                        <button
-                                            type="button"
-                                            onClick={() => removeImage(i)}
-                                            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
-                                        >
-                                            <X className="h-3 w-3" />
-                                        </button>
-                                    </div>
-                                ))}
-                                {images.length < 5 && (
-                                    <label className="aspect-square rounded-md border-2 border-dashed border-input flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-muted/50 transition-colors">
-                                        <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-                                        <span className="text-xs text-muted-foreground">Upload</span>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            multiple
-                                            onChange={handleImageUpload}
-                                            className="hidden"
-                                        />
-                                    </label>
-                                )}
+                        {/* Images — Coming Soon */}
+                        <div className="rounded-lg border border-dashed border-input p-4 bg-muted/30">
+                            <div className="flex items-start gap-3">
+                                <Info className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <p className="text-sm font-medium text-foreground">Image Upload Coming Soon</p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Image upload is currently being developed. Your auction will be created with a default placeholder image.
+                                    </p>
+                                </div>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-2">
-                                Tip: High-quality images help attract more bidders
-                            </p>
                         </div>
 
                         {/* Price & Duration */}
@@ -329,11 +289,7 @@ const CreateAuctionPage = () => {
                             {/* Preview Card */}
                             <div className="border border-border rounded-lg overflow-hidden mb-4">
                                 <div className="aspect-square bg-muted flex items-center justify-center">
-                                    {images.length > 0 ? (
-                                        <img src={images[0]} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <Image className="h-12 w-12 text-muted-foreground" />
-                                    )}
+                                    <Image className="h-12 w-12 text-muted-foreground" />
                                 </div>
                                 <div className="p-3">
                                     <p className="text-xs text-success font-medium mb-1">New Auction</p>

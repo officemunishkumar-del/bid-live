@@ -1,7 +1,7 @@
 /**
  * API Service Layer
  * Base configuration for all API calls.
- * Includes request timeout, auth headers, and auto-logout on 401.
+ * Includes request timeout, auth headers, JWT expiry check, and auto-logout on 401.
  */
 
 // API base URL - using proxy in vite.config.ts
@@ -28,12 +28,45 @@ export const removeToken = (): void => {
     localStorage.removeItem(TOKEN_KEY);
 };
 
-// API request helper with auth headers, timeout, and auto-logout
+/**
+ * Decode JWT payload without a library.
+ * Returns null if the token is malformed.
+ */
+const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
+    try {
+        const parts = token.split(".");
+        if (parts.length !== 3) return null;
+        const payload = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+        return JSON.parse(payload);
+    } catch {
+        return null;
+    }
+};
+
+/**
+ * Check if a JWT token is expired.
+ * Adds a 30-second buffer so we don't send requests with an about-to-expire token.
+ */
+export const isTokenExpired = (token: string): boolean => {
+    const payload = decodeJwtPayload(token);
+    if (!payload || typeof payload.exp !== "number") return false; // can't check, assume valid
+    const expiresAt = payload.exp * 1000; // convert to ms
+    return Date.now() >= expiresAt - 30_000; // 30s buffer
+};
+
+// API request helper with auth headers, timeout, expiry check, and auto-logout
 export const apiRequest = async <T>(
     endpoint: string,
     options: RequestInit = {}
 ): Promise<T> => {
     const token = getToken();
+
+    // Proactive expiry check — logout before making the request
+    if (token && isTokenExpired(token)) {
+        removeToken();
+        window.dispatchEvent(new CustomEvent("auth:logout"));
+        throw new Error("Your session has expired. Please log in again.");
+    }
 
     const headers: HeadersInit = {
         "Content-Type": "application/json",
@@ -66,8 +99,8 @@ export const apiRequest = async <T>(
         }
 
         return response.json();
-    } catch (error: any) {
-        if (error.name === "AbortError") {
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === "AbortError") {
             throw new Error("Request timed out. Please check your connection and try again.");
         }
         throw error;
@@ -75,7 +108,3 @@ export const apiRequest = async <T>(
         clearTimeout(timeoutId);
     }
 };
-
-// Simulated network delay for mock responses
-export const mockDelay = (ms: number = 500) =>
-    new Promise(resolve => setTimeout(resolve, ms));

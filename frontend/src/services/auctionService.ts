@@ -6,6 +6,8 @@
 
 import { apiRequest } from "./api";
 import { AuctionItem as UIAuctionItem, PaginatedResponse } from "@/types/auction";
+import { BackendAuction } from "@/types/backendModels";
+import { CreateAuctionDto } from "@/types/createAuctionDto";
 
 /**
  * Fetch all auctions with pagination and status filter
@@ -16,7 +18,7 @@ export const getAuctions = async (page: number = 1, limit: number = 20, status?:
         url += `&status=${status}`;
     }
 
-    const response = await apiRequest<PaginatedResponse<any>>(url);
+    const response = await apiRequest<PaginatedResponse<BackendAuction>>(url);
 
     // Map backend model to UI model
     return {
@@ -29,7 +31,7 @@ export const getAuctions = async (page: number = 1, limit: number = 20, status?:
  * Fetch a single auction by ID
  */
 export const getAuctionById = async (id: string): Promise<UIAuctionItem> => {
-    const response = await apiRequest<any>(`/auctions/${id}`);
+    const response = await apiRequest<BackendAuction>(`/auctions/${id}`);
     return mapBackendToUI(response);
 };
 
@@ -51,17 +53,14 @@ export const placeBid = async (params: { auctionId: string; amount: number }): P
 /**
  * Create a new auction
  */
-export const createAuction = async (data: any): Promise<UIAuctionItem> => {
-    const response = await apiRequest<any>("/auctions", {
+export const createAuction = async (data: CreateAuctionDto): Promise<UIAuctionItem> => {
+    const response = await apiRequest<BackendAuction>("/auctions", {
         method: "POST",
         body: JSON.stringify(data),
     });
     return mapBackendToUI(response);
 };
 
-/**
- * Helper to map backend auction entity to UI model
- */
 /**
  * Map backend status (ACTIVE, ENDED, SETTLED) to frontend status (active, expired, sold)
  */
@@ -74,7 +73,13 @@ const mapStatus = (backendStatus?: string): "active" | "sold" | "expired" => {
     }
 };
 
-const mapBackendToUI = (item: any): UIAuctionItem => {
+/**
+ * Helper to map backend auction entity to UI model.
+ * Uses optional chaining to guard against null/undefined fields.
+ */
+const mapBackendToUI = (item: BackendAuction): UIAuctionItem => {
+    const creatorName = item.creator?.name ?? item.creator?.email?.split("@")[0] ?? "Unknown";
+
     return {
         id: item.id,
         title: item.title,
@@ -85,7 +90,7 @@ const mapBackendToUI = (item: any): UIAuctionItem => {
         estimateHigh: item.startingPrice * 2,
         currentBid: item.currentPrice || item.startingPrice,
         bidCount: item.bids ? item.bids.length : 0,
-        auctioneer: item.creator ? (item.creator.name || item.creator.email.split("@")[0]) : "Unknown",
+        auctioneer: creatorName,
         auctioneerRating: 4.5,
         auctioneerReviews: 120,
         endTime: item.endsAt,

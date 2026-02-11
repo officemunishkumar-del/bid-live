@@ -1,30 +1,23 @@
-import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { auctionHouses, featuredAuctions, searchCategories } from "@/data/mockData";
-import { AuctionItem as UIAuctionItem } from "@/types/auction";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { auctionHouses, featuredAuctions } from "@/data/mockData";
 import ItemCard from "@/components/auction/ItemCard";
 import { getAuctions } from "@/services/auctionService";
 
 const HomePage = () => {
   const [carouselIdx, setCarouselIdx] = useState(0);
-  const [trendingItems, setTrendingItems] = useState<UIAuctionItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const featured = featuredAuctions[carouselIdx];
 
-  useEffect(() => {
-    const fetchTrending = async () => {
-      try {
-        const response = await getAuctions();
-        setTrendingItems(response.data.slice(0, 8));
-      } catch (error) {
-        console.error("Failed to fetch trending auctions:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchTrending();
-  }, []);
+  const { data: trendingItems = [], isLoading } = useQuery({
+    queryKey: ["auctions", "trending"],
+    queryFn: async () => {
+      const response = await getAuctions();
+      return response.data.slice(0, 8);
+    },
+    staleTime: 60_000, // Trending items fresh for 1 minute
+  });
 
   return (
     <div>
@@ -45,9 +38,9 @@ const HomePage = () => {
               <Link to="/search" className="h-11 px-8 rounded-md bg-primary text-primary-foreground font-semibold text-sm flex items-center hover:bg-primary/90 transition-colors">
                 Bid Now
               </Link>
-              <button className="h-11 px-8 rounded-md border border-input bg-background text-sm font-semibold hover:bg-muted transition-colors">
+              <Link to="/create-auction" className="h-11 px-8 rounded-md border border-input bg-background text-sm font-semibold hover:bg-muted transition-colors flex items-center">
                 Sell Your Item
-              </button>
+              </Link>
             </div>
           </div>
           <div className="md:w-1/2 relative h-full flex items-center justify-center p-4">
@@ -85,22 +78,6 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Category Icons */}
-      <section className="py-12 border-b border-border bg-background">
-        <div className="container mx-auto px-4">
-          <div className="flex lg:grid lg:grid-cols-5 flex-nowrap overflow-x-auto gap-8 justify-between pb-4 lg:pb-0 scrollbar-hide">
-            {searchCategories.slice(0, 5).map((category, i) => (
-              <div key={i} className="flex flex-col items-center group cursor-pointer min-w-[100px]">
-                <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center text-2xl mb-3 group-hover:bg-primary/5 transition-all group-hover:scale-110">
-                  {category.icon}
-                </div>
-                <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{category.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Auction Houses */}
       <section className="py-10 bg-background">
         <div className="container mx-auto px-4">
@@ -112,10 +89,10 @@ const HomePage = () => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {auctionHouses.map((house) => (
-              <div key={house.id} className="group cursor-pointer">
+              <div key={house.id} className="">
                 <div className="relative h-48 rounded-lg overflow-hidden mb-3">
                   <img
-                    src={house.image}
+                    src={house.image || `https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=400&h=300&fit=crop`}
                     alt={house.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     onError={(e) => {
@@ -130,7 +107,7 @@ const HomePage = () => {
                   </div>
                 </div>
                 <h3 className="font-serif font-bold text-foreground group-hover:text-primary transition-colors">{house.name}</h3>
-                <p className="text-xs text-muted-foreground mt-1">{house.location} • {house.upcomingCount} Upcoming</p>
+                <p className="text-xs text-muted-foreground mt-1">{house.location} • {house.upcomingCount ?? 0} Upcoming</p>
               </div>
             ))}
           </div>

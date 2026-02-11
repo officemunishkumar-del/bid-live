@@ -14,12 +14,12 @@ export const categories = [
 ];
 
 export const auctionHouses: AuctionHouse[] = [
-  { id: "ah1", name: "Bonhams", logo: "B", location: "London, UK", rating: 4.8, reviewCount: 2340 },
-  { id: "ah2", name: "Heritage Auctions", logo: "H", location: "Dallas, TX", rating: 4.7, reviewCount: 5120 },
-  { id: "ah3", name: "Phillips", logo: "P", location: "New York, NY", rating: 4.9, reviewCount: 1890 },
-  { id: "ah4", name: "Sotheby's", logo: "S", location: "New York, NY", rating: 4.9, reviewCount: 8900 },
-  { id: "ah5", name: "Christie's", logo: "C", location: "London, UK", rating: 4.8, reviewCount: 7650 },
-  { id: "ah6", name: "Doyle", logo: "D", location: "New York, NY", rating: 4.5, reviewCount: 1230 },
+  { id: "ah1", name: "Bonhams", logo: "B", location: "London, UK", rating: 4.8, reviewCount: 2340, image: "https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=400&h=300&fit=crop", upcomingCount: 42 },
+  { id: "ah2", name: "Heritage Auctions", logo: "H", location: "Dallas, TX", rating: 4.7, reviewCount: 5120, image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&h=300&fit=crop", upcomingCount: 128 },
+  { id: "ah3", name: "Phillips", logo: "P", location: "New York, NY", rating: 4.9, reviewCount: 1890, image: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop", upcomingCount: 35 },
+  { id: "ah4", name: "Sotheby's", logo: "S", location: "New York, NY", rating: 4.9, reviewCount: 8900, image: "https://images.unsplash.com/photo-1577720643272-265f09367456?w=400&h=300&fit=crop", upcomingCount: 210 },
+  { id: "ah5", name: "Christie's", logo: "C", location: "London, UK", rating: 4.8, reviewCount: 7650, image: "https://images.unsplash.com/photo-1564078516393-cf04bd966897?w=400&h=300&fit=crop", upcomingCount: 185 },
+  { id: "ah6", name: "Doyle", logo: "D", location: "New York, NY", rating: 4.5, reviewCount: 1230, image: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&h=300&fit=crop", upcomingCount: 18 },
 ];
 
 export const auctionItems: AuctionItem[] = [

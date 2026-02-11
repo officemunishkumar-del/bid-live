@@ -23,12 +23,12 @@ export const getTimeRemaining = (endTime: string) => {
     let urgency: "normal" | "warning" | "urgent" | "ended" = "normal";
 
     if (days > 0) {
-        label = `${days}d ${hours}h`;
+        label = `${days} Days ${hours} Hrs ${minutes} Min ${seconds} Sec`;
     } else if (hours > 0) {
-        label = `${hours}h ${minutes}m`;
+        label = `${hours} Hrs ${minutes} Min ${seconds} Sec`;
         urgency = "warning";
     } else {
-        label = `${minutes}m ${seconds}s`;
+        label = `${minutes} Min ${seconds} Sec`;
         urgency = "urgent";
     }
 

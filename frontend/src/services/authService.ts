@@ -5,6 +5,7 @@
  */
 
 import { apiRequest, setToken, removeToken, getToken } from "./api";
+import { BackendAuthResponse, BackendUser, BackendAuction } from "@/types/backendModels";
 
 export interface User {
     id: string;
@@ -14,8 +15,8 @@ export interface User {
     hold?: number;
     availableBalance?: number;
     createdAt: string;
-    wonAuctions?: any[];
-    createdAuctions?: any[];
+    wonAuctions?: BackendAuction[];
+    createdAuctions?: BackendAuction[];
 }
 
 export interface LoginCredentials {
@@ -29,16 +30,11 @@ export interface RegisterData {
     name: string;
 }
 
-export interface AuthResponse {
-    user: User;
-    accessToken: string;
-}
-
 /**
  * Login with email and password
  */
 export const login = async (credentials: LoginCredentials): Promise<{ user: User; token: string }> => {
-    const response = await apiRequest<AuthResponse>("/auth/login", {
+    const response = await apiRequest<BackendAuthResponse>("/auth/login", {
         method: "POST",
         body: JSON.stringify(credentials),
     });
@@ -47,10 +43,7 @@ export const login = async (credentials: LoginCredentials): Promise<{ user: User
     setToken(response.accessToken);
 
     return {
-        user: {
-            ...response.user,
-            name: response.user.email.split("@")[0],
-        },
+        user: mapBackendUser(response.user),
         token: response.accessToken,
     };
 };
@@ -59,7 +52,7 @@ export const login = async (credentials: LoginCredentials): Promise<{ user: User
  * Register a new user
  */
 export const register = async (data: RegisterData): Promise<{ user: User; token: string }> => {
-    const response = await apiRequest<AuthResponse>("/auth/register", {
+    const response = await apiRequest<BackendAuthResponse>("/auth/register", {
         method: "POST",
         body: JSON.stringify({
             email: data.email,
@@ -73,7 +66,7 @@ export const register = async (data: RegisterData): Promise<{ user: User; token:
 
     return {
         user: {
-            ...response.user,
+            ...mapBackendUser(response.user),
             name: data.name || response.user.email.split("@")[0],
         },
         token: response.accessToken,
@@ -95,29 +88,8 @@ export const getCurrentUser = async (): Promise<User | null> => {
     if (!token) return null;
 
     try {
-        const profile = await apiRequest<{
-            id: string;
-            email: string;
-            name: string;
-            balance: number;
-            hold: number;
-            availableBalance: number;
-            createdAt: string;
-            wonAuctions: any[];
-            createdAuctions: any[];
-        }>("/users/me");
-
-        return {
-            id: profile.id,
-            email: profile.email,
-            name: profile.name || profile.email.split("@")[0],
-            balance: profile.balance,
-            hold: profile.hold,
-            availableBalance: profile.availableBalance,
-            createdAt: profile.createdAt,
-            wonAuctions: profile.wonAuctions,
-            createdAuctions: profile.createdAuctions,
-        };
+        const profile = await apiRequest<BackendUser>("/users/me");
+        return mapBackendUser(profile);
     } catch (error) {
         // Token invalid or expired
         removeToken();
@@ -126,15 +98,16 @@ export const getCurrentUser = async (): Promise<User | null> => {
 };
 
 /**
- * Update user balance (mock - for UI purposes)
- * In real app, this should fetch current balance from backend
+ * Map backend user to frontend User type
  */
-export const updateBalance = async (amount: number): Promise<User> => {
-    const user = await getCurrentUser();
-    if (!user) throw new Error("Not authenticated");
-
-    return {
-        ...user,
-        balance: user.balance + amount,
-    };
-};
+const mapBackendUser = (profile: BackendUser): User => ({
+    id: profile.id,
+    email: profile.email,
+    name: profile.name || profile.email.split("@")[0],
+    balance: profile.balance,
+    hold: profile.hold,
+    availableBalance: profile.availableBalance,
+    createdAt: profile.createdAt,
+    wonAuctions: profile.wonAuctions,
+    createdAuctions: profile.createdAuctions,
+});

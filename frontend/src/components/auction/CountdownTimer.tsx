@@ -25,13 +25,9 @@ const CountdownTimer = ({ endTime, className = "", showLabel = true }: Countdown
 
   return (
     <span className={`font-medium ${colorClass} ${className}`}>
-      {showLabel && timeLeft.urgency !== "ended" && (
-        <span className="text-muted-foreground mr-1">
-          {timeLeft.days > 0 ? `${timeLeft.days} Days Left` : timeLeft.label}
-        </span>
-      )}
-      {!showLabel && timeLeft.label}
-      {timeLeft.urgency === "ended" && "Auction Ended"}
+      {timeLeft.urgency === "ended"
+        ? "Auction Ended"
+        : timeLeft.label}
     </span>
   );
 };

@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Search, Bell, Heart, ShoppingCart, User, Menu, X, Plus, LogOut } from "lucide-react";
-import { categories } from "@/data/mockData";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Search, User, Menu, X, Plus, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/auth/AuthModal";
 
 const Header = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -16,6 +16,15 @@ const Header = () => {
     logout();
     setShowUserDropdown(false);
   };
+
+  // Auto-navigate to search page with 400ms debounce
+  useEffect(() => {
+    if (!searchQuery.trim()) return;
+    const timer = setTimeout(() => {
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`, { replace: true });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery, navigate]);
 
   return (
     <>
@@ -32,7 +41,7 @@ const Header = () => {
 
             {/* Search - hidden on mobile */}
             <div className="hidden md:flex flex-1 max-w-xl mx-4">
-              <div className="relative w-full">
+              <form className="relative w-full" onSubmit={(e) => { e.preventDefault(); if (searchQuery.trim()) navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`); }}>
                 <input
                   type="text"
                   placeholder="Search items and auction houses"
@@ -40,13 +49,10 @@ const Header = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full h-10 pl-4 pr-10 rounded-lg border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-                <Link
-                  to={`/search?q=${encodeURIComponent(searchQuery)}`}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
+                <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   <Search className="h-4 w-4" />
-                </Link>
-              </div>
+                </button>
+              </form>
             </div>
 
             {/* Action Icons */}
@@ -60,16 +66,6 @@ const Header = () => {
                   <span className="text-[10px] mt-0.5">Create</span>
                 </Link>
               )}
-              {[
-                { icon: Bell, label: "Alerts" },
-                { icon: Heart, label: "My Items" },
-                { icon: ShoppingCart, label: "Won Items" },
-              ].map(({ icon: Icon, label }) => (
-                <button key={label} className="flex flex-col items-center px-3 py-1 text-muted-foreground hover:text-foreground transition-colors">
-                  <Icon className="h-5 w-5" />
-                  <span className="text-[10px] mt-0.5">{label}</span>
-                </button>
-              ))}
 
               {/* User Account */}
               <div className="relative">
@@ -147,34 +143,12 @@ const Header = () => {
           </div>
         </div>
 
-        {/* Secondary nav */}
-        <div className="border-t border-border bg-background">
-          <div className="container mx-auto px-4">
-            <div className="hidden md:flex items-center justify-between h-10 text-sm overflow-x-auto">
-              <div className="flex items-center gap-6">
-                {categories.map((cat) => (
-                  <Link key={cat} to={`/search?category=${encodeURIComponent(cat)}`} className="text-muted-foreground hover:text-foreground whitespace-nowrap transition-colors">
-                    {cat}
-                  </Link>
-                ))}
-              </div>
-              <div className="flex items-center gap-4 ml-4">
-                <Link to="/search" className="text-muted-foreground hover:text-foreground whitespace-nowrap">📅 Upcoming</Link>
-                <Link to="/search" className="text-muted-foreground hover:text-foreground whitespace-nowrap">📍 Near Me</Link>
-              </div>
-            </div>
-          </div>
-        </div>
+
 
         {/* Mobile menu */}
         {showMobileMenu && (
           <div className="md:hidden border-t border-border bg-background animate-fade-in">
             <div className="p-4 space-y-3">
-              {categories.map((cat) => (
-                <Link key={cat} to={`/search?category=${encodeURIComponent(cat)}`} className="block py-2 text-sm text-muted-foreground hover:text-foreground" onClick={() => setShowMobileMenu(false)}>
-                  {cat}
-                </Link>
-              ))}
               <div className="border-t border-border pt-3 flex flex-col gap-2">
                 {isAuthenticated ? (
                   <>
